@@ -5,7 +5,6 @@ import { authenticate, authorize } from "../../middleware/auth.js";
 import { ValidationError } from "../../lib/errors.js";
 
 export async function authRoutes(app: FastifyInstance) {
-  // POST /api/auth/register — Регистрация новой организации
   app.post("/register", async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -24,7 +23,6 @@ export async function authRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /api/auth/login — Вход
   app.post("/login", async (request, reply) => {
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -39,7 +37,6 @@ export async function authRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: result });
   });
 
-  // POST /api/auth/refresh — Обновление токена
   app.post("/refresh", async (request, reply) => {
     const parsed = refreshSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -54,14 +51,12 @@ export async function authRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: result });
   });
 
-  // POST /api/auth/logout — Выход
   app.post("/logout", { preHandler: [authenticate] }, async (request, reply) => {
     const body = request.body as { refreshToken?: string };
     await authService.logout(request.user.id, body?.refreshToken);
     reply.send({ success: true, message: "Вы вышли из системы" });
   });
 
-  // GET /api/auth/me — Текущий пользователь
   app.get("/me", { preHandler: [authenticate] }, async (request, reply) => {
     const { prisma } = await import("../../lib/prisma.js");
     const user = await prisma.user.findUnique({
@@ -73,7 +68,6 @@ export async function authRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: user });
   });
 
-  // POST /api/auth/users — Создание пользователя (только OWNER/ADMIN)
   app.post("/users", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {

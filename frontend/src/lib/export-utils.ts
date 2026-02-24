@@ -1,4 +1,3 @@
-// ======== EXCEL ========
 
 export async function exportToExcel(
   title: string,
@@ -20,8 +19,6 @@ export async function exportToExcel(
   XLSX.utils.book_append_sheet(wb, ws, title.slice(0, 31));
   XLSX.writeFile(wb, `${fileName || title}.xlsx`);
 }
-
-// ======== PDF ========
 
 let fontLoaded = false;
 

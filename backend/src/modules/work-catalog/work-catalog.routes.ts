@@ -35,7 +35,6 @@ const updateWorkItemSchema = createWorkItemSchema.partial().extend({
 export async function workCatalogRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // GET /api/work-catalog/categories — Категории работ
   app.get("/categories", async (request, reply) => {
     const categories = await prisma.workCategory.findMany({
       where: { organizationId: request.user.organizationId },
@@ -45,7 +44,6 @@ export async function workCatalogRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: categories });
   });
 
-  // GET /api/work-catalog — Все работы (с поиском)
   app.get("/", async (request, reply) => {
     const { search, categoryId } = request.query as Record<string, string>;
 
@@ -70,7 +68,6 @@ export async function workCatalogRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: items });
   });
 
-  // POST /api/work-catalog — Создать работу
   app.post("/", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -89,7 +86,6 @@ export async function workCatalogRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: item });
   });
 
-  // PATCH /api/work-catalog/:id — Обновить работу
   app.patch("/:id", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -112,9 +108,6 @@ export async function workCatalogRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: item });
   });
 
-  // ======== CRUD КАТЕГОРИЙ ========
-
-  // POST /api/work-catalog/categories — Создать категорию
   app.post("/categories", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -125,7 +118,6 @@ export async function workCatalogRoutes(app: FastifyInstance) {
 
     const orgId = request.user.organizationId;
 
-    // Определяем sortOrder если не указан
     let sortOrder = parsed.data.sortOrder;
     if (sortOrder === undefined) {
       const last = await prisma.workCategory.findFirst({
@@ -149,7 +141,6 @@ export async function workCatalogRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: category });
   });
 
-  // PATCH /api/work-catalog/categories/:id — Обновить категорию
   app.patch("/categories/:id", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -175,7 +166,6 @@ export async function workCatalogRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: category });
   });
 
-  // DELETE /api/work-catalog/categories/:id — Удалить категорию
   app.delete("/categories/:id", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {

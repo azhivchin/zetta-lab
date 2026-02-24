@@ -2,7 +2,6 @@ import { FastifyInstance } from "fastify";
 import prisma from "../../lib/prisma.js";
 import { authenticate } from "../../middleware/auth.js";
 
-// Линейная регрессия (y = a + bx)
 function linearRegression(data: { x: number; y: number }[]): { slope: number; intercept: number } {
   const n = data.length;
   if (n < 2) return { slope: 0, intercept: data[0]?.y || 0 };
@@ -18,7 +17,6 @@ function linearRegression(data: { x: number; y: number }[]): { slope: number; in
 export async function analyticsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // ======== ВЫРУЧКА ПО МЕСЯЦАМ ========
   // GET /api/analytics/revenue?year=2026
   app.get("/revenue", async (request, reply) => {
     const orgId = request.user.organizationId;
@@ -41,7 +39,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
       select: { amount: true, date: true, category: true },
     });
 
-    // Группируем по месяцам
     const months: { month: string; revenue: number; expenses: number; profit: number }[] = [];
     for (let m = 0; m < 12; m++) {
       const label = `${y}-${String(m + 1).padStart(2, "0")}`;
@@ -54,7 +51,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
       months.push({ month: label, revenue: Math.round(rev), expenses: Math.round(exp), profit: Math.round(rev - exp) });
     }
 
-    // Объёмы заказов по месяцам
     const orders = await prisma.order.findMany({
       where: {
         organizationId: orgId,
@@ -75,7 +71,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { months, ordersByMonth, year: y } });
   });
 
-  // ======== ДЕДЛАЙНЫ / СРОКИ ========
   // GET /api/analytics/deadlines?dateFrom=...&dateTo=...
   app.get("/deadlines", async (request, reply) => {
     const orgId = request.user.organizationId;
@@ -120,7 +115,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
       else c.delays.push(delayDays);
     }
 
-    // Финализируем по клиенту
     const clientStats = Array.from(byClient.values()).map(c => ({
       name: c.name,
       total: c.total,
@@ -146,7 +140,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
     });
   });
 
-  // ======== ТЕХНИКИ — РЕЙТИНГ ========
   // GET /api/analytics/technicians?dateFrom=...&dateTo=...
   app.get("/technicians", async (request, reply) => {
     const orgId = request.user.organizationId;
@@ -156,7 +149,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
     const from = dateFrom ? new Date(dateFrom) : new Date(now.getFullYear(), 0, 1);
     const to = dateTo ? new Date(dateTo) : now;
 
-    // Этапы техников
     const stages = await prisma.orderStage.findMany({
       where: {
         order: { organizationId: orgId },
@@ -170,7 +162,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
       },
     });
 
-    // Зарплаты за период
     const periodFrom = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}`;
     const periodTo = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}`;
 
@@ -182,7 +173,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
       select: { userId: true, amount: true },
     });
 
-    // Переделки по технику
     const reworks = await prisma.rework.findMany({
       where: {
         organizationId: orgId,
@@ -192,7 +182,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
       select: { responsibleId: true, cost: true },
     });
 
-    // Агрегируем
     const techMap = new Map<string, {
       name: string; department: string | null; role: string;
       stagesCompleted: number; salary: number; reworks: number; reworkCost: number;
@@ -234,14 +223,12 @@ export async function analyticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: technicians });
   });
 
-  // ======== ПРОГНОЗЫ ========
   // GET /api/analytics/forecast?months=3
   app.get("/forecast", async (request, reply) => {
     const orgId = request.user.organizationId;
     const { months: forecastMonths } = request.query as { months?: string };
     const ahead = parseInt(forecastMonths || "3");
 
-    // Собираем данные за последние 12 месяцев
     const now = new Date();
     const lookback = 12;
     const startDate = new Date(now.getFullYear(), now.getMonth() - lookback + 1, 1);
@@ -262,7 +249,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
       select: { receivedAt: true, totalPrice: true },
     });
 
-    // Агрегируем по месяцам
     const revenueData: { x: number; y: number; label: string }[] = [];
     const ordersData: { x: number; y: number; label: string }[] = [];
 
@@ -282,11 +268,9 @@ export async function analyticsRoutes(app: FastifyInstance) {
       ordersData.push({ x: i, y: cnt, label });
     }
 
-    // Регрессия
     const revReg = linearRegression(revenueData);
     const ordReg = linearRegression(ordersData);
 
-    // Прогноз
     const revenueHistory = revenueData.map(d => ({ month: d.label, actual: d.y }));
     const revenueForecast: { month: string; forecast: number }[] = [];
     const ordersHistory = ordersData.map(d => ({ month: d.label, actual: d.y }));
@@ -309,7 +293,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
     });
   });
 
-  // ======== РЕЙТИНГ ВРАЧЕЙ ========
   // GET /api/analytics/doctors?dateFrom=...&dateTo=...&clientId=...
   app.get("/doctors", async (request, reply) => {
     const orgId = request.user.organizationId;
@@ -370,7 +353,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { doctors, totalRevenue: Math.round(totalRevenue) } });
   });
 
-  // ======== ДНЕВНЫЕ ОБЪЁМЫ ========
   // GET /api/analytics/daily?year=2026&month=01
   app.get("/daily", async (request, reply) => {
     const orgId = request.user.organizationId;
@@ -427,7 +409,6 @@ export async function analyticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { days, month: m, year: y } });
   });
 
-  // ======== РАСПРЕДЕЛЕНИЕ КЛИЕНТОВ ========
   // GET /api/analytics/clients?year=2026
   app.get("/clients", async (request, reply) => {
     const orgId = request.user.organizationId;

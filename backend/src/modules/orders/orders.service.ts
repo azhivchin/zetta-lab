@@ -6,7 +6,6 @@ import { OrderStatus, StageStatus, Prisma } from "@prisma/client";
 import { createNotification, broadcastNotification } from "../notifications/notifications.routes.js";
 import { resolvePrice } from "../pricing/pricing.routes.js";
 
-// Стандартные этапы (fallback если справочник пуст)
 const FALLBACK_STAGES = [
   { name: "Гипсовка", sortOrder: 1 },
   { name: "CAD-моделирование", sortOrder: 2 },
@@ -27,7 +26,6 @@ async function getProductionStages(orgId: string): Promise<Array<{ name: string;
 }
 
 export class OrdersService {
-  // Генерация номера наряда (формат: 0.XXXX)
   private async generateOrderNumber(orgId: string): Promise<string> {
     const lastOrder = await prisma.order.findFirst({
       where: { organizationId: orgId },
@@ -45,7 +43,6 @@ export class OrdersService {
   async create(orgId: string, userId: string, input: CreateOrderInput) {
     const orderNumber = await this.generateOrderNumber(orgId);
 
-    // Если передано имя пациента — создаём нового
     let patientId = input.patientId;
     if (!patientId && input.patientName) {
       const parts = input.patientName.trim().split(/\s+/);
@@ -59,7 +56,6 @@ export class OrdersService {
       patientId = patient.id;
     }
 
-    // Получаем цены для позиций через каскад: ручная → ClientPriceItem → PriceListItem → basePrice
     let totalPrice = new Prisma.Decimal(0);
     let discountTotal = new Prisma.Decimal(0);
 
@@ -68,17 +64,14 @@ export class OrdersService {
         let price: Prisma.Decimal;
         let priceListCode: string | undefined;
         if (item.price) {
-          // Ручная цена (приоритет)
           price = new Prisma.Decimal(item.price);
           priceListCode = "manual";
         } else {
-          // Каскад через pricing модуль
           const resolved = await resolvePrice(input.clientId, item.workItemId);
           price = new Prisma.Decimal(resolved.price);
           priceListCode = resolved.source || undefined;
         }
 
-        // Скидка
         const discountPct = new Prisma.Decimal(item.discount || 0);
         const lineTotal = price.mul(item.quantity);
         const discountAmount = lineTotal.mul(discountPct).div(100);
@@ -133,11 +126,9 @@ export class OrdersService {
       },
     });
 
-    // Инвалидируем кэш
     await redis.del(`orders:${orgId}:list`);
     await redis.del(`dashboard:${orgId}`);
 
-    // Уведомление: новый наряд
     try {
       await broadcastNotification({
         organizationId: orgId,
@@ -307,7 +298,6 @@ export class OrdersService {
     await redis.del(`orders:${orgId}:list`);
     await redis.del(`dashboard:${orgId}`);
 
-    // Уведомление: смена статуса
     if (input.status && input.status !== existing.status) {
       const STATUS_LABELS: Record<string, string> = {
         NEW: "Новый", IN_PROGRESS: "В работе", ON_FITTING: "На примерке",
@@ -347,7 +337,6 @@ export class OrdersService {
       include: { assignee: true },
     });
 
-    // Уведомление назначенному технику
     try {
       await createNotification({
         organizationId: orgId,
@@ -384,7 +373,6 @@ export class OrdersService {
       data,
     });
 
-    // Если этап завершён — проверяем, не пора ли перевести наряд в следующий статус
     if (status === "COMPLETED") {
       const allStages = await prisma.orderStage.findMany({
         where: { orderId: stage.orderId },
@@ -396,7 +384,6 @@ export class OrdersService {
           data: { status: "READY" },
         });
 
-        // Уведомление: наряд готов
         try {
           await broadcastNotification({
             organizationId: orgId,
@@ -408,7 +395,6 @@ export class OrdersService {
           });
         } catch { /* non-critical */ }
 
-        // Автосписание материалов по нормам
         try {
           const orderWithItems = await prisma.order.findUnique({
             where: { id: stage.orderId },
@@ -451,7 +437,6 @@ export class OrdersService {
         } catch { /* auto write-off failure should not break stage update */ }
       }
 
-      // Автоматически запускаем следующий этап
       const nextStage = allStages.find(s => s.sortOrder > stage.sortOrder && s.status === "PENDING");
       if (nextStage && nextStage.assigneeId) {
         await prisma.orderStage.update({
@@ -478,7 +463,6 @@ export class OrdersService {
     });
   }
 
-  // Канбан-доска: наряды, сгруппированные по статусам
   async getKanban(orgId: string) {
     const cacheKey = `kanban:${orgId}`;
     const cached = await redis.get(cacheKey);
@@ -512,7 +496,6 @@ export class OrdersService {
     await redis.setex(cacheKey, 60, JSON.stringify(result)); // Кэш 1 минута
     return result;
   }
-  // Мягкое удаление (статус CANCELLED)
   async softDelete(orgId: string, orderId: string, userId: string) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, organizationId: orgId },
@@ -543,7 +526,6 @@ export class OrdersService {
     return updated;
   }
 
-  // Обновить позиции наряда (полная замена)
   async updateItems(orgId: string, orderId: string, items: Array<{ workItemId: string; quantity: number; priceOverride?: number }>) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, organizationId: orgId },

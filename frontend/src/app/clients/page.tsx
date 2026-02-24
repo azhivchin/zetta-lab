@@ -99,7 +99,6 @@ export default function ClientsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newClient, setNewClient] = useState({
     name: "", shortName: "", phone: "", email: "", address: "", contactPerson: "", inn: "", kpp: "",
-    // Расширенные поля (Фаза 1)
     individualCode: "", contractNumber: "", contractDate: "", contractType: "",
     legalEntityName: "", signatoryPosition: "", signatoryName: "", signatoryNameGenitive: "", basisDocument: "",
     legalAddress: "", physicalAddress: "", ogrn: "",
@@ -129,7 +128,6 @@ export default function ClientsPage() {
     if (!getToken()) router.replace("/login");
   }, [router]);
 
-  // Загрузка наших реквизитов (для dropdown в форме клиента)
   const loadOrgRequisites = useCallback(async () => {
     try {
       const res = await authApi("/settings/requisites");
@@ -333,7 +331,6 @@ export default function ClientsPage() {
     if (!newClient.name.trim()) return;
     setSaving(true);
     try {
-      // Убираем пустые строки, чтобы не засорять БД
       const payload: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(newClient)) {
         if (val !== "" && val !== undefined) {

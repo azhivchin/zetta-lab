@@ -9,9 +9,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 
-// ==========================================
 // TYPES
-// ==========================================
 
 interface OrgRequisites {
   id: string;
@@ -63,9 +61,7 @@ const EMPTY_REQUISITES = {
   phone: "", email: "", isDefault: false,
 };
 
-// ==========================================
 // COMPONENT
-// ==========================================
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -93,9 +89,7 @@ export default function SettingsPage() {
     if (!getToken()) router.replace("/login");
   }, [router]);
 
-  // ==========================================
   // REQUISITES
-  // ==========================================
 
   const fetchRequisites = useCallback(async () => {
     setLoadingReq(true);
@@ -179,9 +173,7 @@ export default function SettingsPage() {
     } catch (e) { console.error(e); }
   };
 
-  // ==========================================
   // REFERENCES
-  // ==========================================
 
   const fetchRefTypes = useCallback(async () => {
     try {
@@ -278,9 +270,7 @@ export default function SettingsPage() {
     } catch (e) { console.error(e); }
   };
 
-  // ==========================================
   // RENDER
-  // ==========================================
 
   return (
     <div className="flex h-screen bg-gray-50">

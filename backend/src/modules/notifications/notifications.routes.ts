@@ -103,7 +103,6 @@ export async function broadcastNotification(params: {
 export async function notificationsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // GET /api/notifications — Уведомления текущего пользователя
   app.get("/", async (request, reply) => {
     const { page = "1", limit = "20", unreadOnly } = request.query as Record<string, string>;
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -145,7 +144,6 @@ export async function notificationsRoutes(app: FastifyInstance) {
     });
   });
 
-  // PATCH /api/notifications/:id/read — Отметить прочитанным
   app.patch("/:id/read", async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -162,7 +160,6 @@ export async function notificationsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: updated });
   });
 
-  // PATCH /api/notifications/read-all — Отметить все прочитанными
   app.patch("/read-all", async (request, reply) => {
     await prisma.notification.updateMany({
       where: {
@@ -179,7 +176,6 @@ export async function notificationsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { updated: true } });
   });
 
-  // POST /api/notifications/test-telegram — Тест отправки в Telegram
   app.post("/test-telegram", async (request, reply) => {
     const user = await prisma.user.findUnique({
       where: { id: request.user.id },
@@ -204,7 +200,6 @@ export async function notificationsRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /api/notifications/link-telegram — Привязать Telegram ID
   app.post("/link-telegram", async (request, reply) => {
     const { telegramId } = request.body as { telegramId: string };
 

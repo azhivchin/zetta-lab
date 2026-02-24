@@ -5,7 +5,6 @@ import { ValidationError, NotFoundError } from "../../lib/errors.js";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
-// Fallback причины переделок (если справочник пуст)
 const FALLBACK_REWORK_CATEGORIES: Record<string, string> = {
   ceramic_chip: "Скол керамики",
   fit_issue: "Проблема посадки",
@@ -39,9 +38,6 @@ const createReworkSchema = z.object({
 export async function qualityRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // ======== CRUD ПЕРЕДЕЛОК ========
-
-  // GET /api/quality/reworks — Список переделок
   app.get("/reworks", async (request, reply) => {
     const orgId = request.user.organizationId;
     const { status, category, responsibleId, dateFrom, dateTo, page = "1", limit = "50" } = request.query as Record<string, string>;
@@ -77,7 +73,6 @@ export async function qualityRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /api/quality/reworks — Создать переделку
   app.post("/reworks", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -113,7 +108,6 @@ export async function qualityRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: rework });
   });
 
-  // PATCH /api/quality/reworks/:id — Обновить переделку
   app.patch("/reworks/:id", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -148,9 +142,6 @@ export async function qualityRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: rework });
   });
 
-  // ======== СТАТИСТИКА КАЧЕСТВА ========
-
-  // GET /api/quality/stats — Дашборд качества
   app.get("/stats", async (request, reply) => {
     const orgId = request.user.organizationId;
     const { dateFrom, dateTo } = request.query as { dateFrom?: string; dateTo?: string };
@@ -167,7 +158,6 @@ export async function qualityRoutes(app: FastifyInstance) {
       ...(dateFilter && { detectedAt: dateFilter }),
     };
 
-    // Общие числа
     const [totalReworks, totalOrders, openReworks, totalCost] = await Promise.all([
       prisma.rework.count({ where }),
       prisma.order.count({
@@ -182,7 +172,6 @@ export async function qualityRoutes(app: FastifyInstance) {
 
     const reworkRate = totalOrders > 0 ? Math.round((totalReworks / totalOrders) * 100 * 10) / 10 : 0;
 
-    // По категориям
     const byCategory = await prisma.rework.groupBy({
       by: ["category"],
       where,
@@ -199,7 +188,6 @@ export async function qualityRoutes(app: FastifyInstance) {
       cost: Number(c._sum.cost || 0),
     })).sort((a, b) => b.count - a.count);
 
-    // По техникам (ответственным)
     const byTechnician = await prisma.rework.groupBy({
       by: ["responsibleId"],
       where: { ...where, responsibleId: { not: null } },
@@ -207,7 +195,6 @@ export async function qualityRoutes(app: FastifyInstance) {
       _sum: { cost: true },
     });
 
-    // Загружаем имена техников
     const techIds = byTechnician.map(t => t.responsibleId).filter(Boolean) as string[];
     const technicians = techIds.length > 0
       ? await prisma.user.findMany({
@@ -225,7 +212,6 @@ export async function qualityRoutes(app: FastifyInstance) {
       cost: Number(t._sum.cost || 0),
     })).sort((a, b) => b.count - a.count);
 
-    // По клиентам
     const byClient = await prisma.rework.groupBy({
       by: ["clientId"],
       where: { ...where, clientId: { not: null } },
@@ -248,7 +234,6 @@ export async function qualityRoutes(app: FastifyInstance) {
       count: c._count,
     })).sort((a, b) => b.count - a.count).slice(0, 10);
 
-    // По врачам — переделки привязанные к заказам с врачами
     const reworksWithDoctors = await prisma.rework.findMany({
       where,
       select: {

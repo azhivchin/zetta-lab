@@ -14,30 +14,25 @@ const FONT_REGULAR = path.join(FONT_DIR, "PTSans-Regular.ttf");
 const FONT_BOLD = path.join(FONT_DIR, "PTSans-Bold.ttf");
 
 export async function ordersRoutes(app: FastifyInstance) {
-  // Все роуты требуют авторизации
   app.addHook("preHandler", authenticate);
 
-  // GET /api/orders — Список нарядов с фильтрами
   app.get("/", async (request, reply) => {
     const filters = orderFilterSchema.parse(request.query);
     const result = await ordersService.findAll(request.user.organizationId, filters);
     reply.send({ success: true, data: result });
   });
 
-  // GET /api/orders/kanban — Канбан-доска
   app.get("/kanban", async (request, reply) => {
     const result = await ordersService.getKanban(request.user.organizationId);
     reply.send({ success: true, data: result });
   });
 
-  // GET /api/orders/:id — Детали наряда
   app.get("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const order = await ordersService.findById(request.user.organizationId, id);
     reply.send({ success: true, data: order });
   });
 
-  // POST /api/orders — Создание наряда
   app.post("/", async (request, reply) => {
     const parsed = createOrderSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -51,7 +46,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: order });
   });
 
-  // PATCH /api/orders/:id — Обновление наряда
   app.patch("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const parsed = updateOrderSchema.safeParse(request.body);
@@ -64,7 +58,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: order });
   });
 
-  // PUT /api/orders/:orderId/stages/:stageId/assign — Назначить техника на этап
   app.put("/:orderId/stages/:stageId/assign", async (request, reply) => {
     const { stageId } = request.params as { orderId: string; stageId: string };
     const parsed = assignStageSchema.safeParse(request.body);
@@ -77,7 +70,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: stage });
   });
 
-  // PATCH /api/orders/:orderId/stages/:stageId — Обновить статус этапа
   app.patch("/:orderId/stages/:stageId", async (request, reply) => {
     const { stageId } = request.params as { orderId: string; stageId: string };
     const parsed = updateStageSchema.safeParse(request.body);
@@ -90,7 +82,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: stage });
   });
 
-  // DELETE /api/orders/:id — Мягкое удаление (CANCELLED)
   app.delete("/:id", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -101,7 +92,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: order });
   });
 
-  // PUT /api/orders/:id/items — Обновить позиции наряда
   app.put("/:id/items", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -116,7 +106,6 @@ export async function ordersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: order });
   });
 
-  // GET /api/orders/:id/print-pdf — Печать наряд-заказа PDF
   app.get("/:id/print-pdf", async (request, reply) => {
     const { id } = request.params as { id: string };
     const orgId = request.user.organizationId;
@@ -247,7 +236,6 @@ export async function ordersRoutes(app: FastifyInstance) {
       .send(pdfBuffer);
   });
 
-  // POST /api/orders/:id/comments — Добавить комментарий
   app.post("/:id/comments", async (request, reply) => {
     const { id } = request.params as { id: string };
     const { text } = request.body as { text: string };

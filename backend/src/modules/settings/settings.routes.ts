@@ -4,9 +4,7 @@ import { authenticate, authorize } from "../../middleware/auth.js";
 import { ValidationError, NotFoundError } from "../../lib/errors.js";
 import { z } from "zod";
 
-// ==========================================
 // SCHEMAS
-// ==========================================
 
 const orgRequisitesSchema = z.object({
   name: z.string().min(2, "Название: минимум 2 символа"),
@@ -42,11 +40,8 @@ const referenceListSchema = z.object({
 export async function settingsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // ==========================================
   // ORG REQUISITES
-  // ==========================================
 
-  // GET /api/settings/requisites — Все наши юрлица
   app.get("/requisites", async (request, reply) => {
     const requisites = await prisma.orgRequisites.findMany({
       where: { organizationId: request.user.organizationId },
@@ -65,7 +60,6 @@ export async function settingsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: item });
   });
 
-  // POST /api/settings/requisites — Создать юрлицо
   app.post("/requisites", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -77,7 +71,6 @@ export async function settingsRoutes(app: FastifyInstance) {
     const data = parsed.data;
     const orgId = request.user.organizationId;
 
-    // Если ставим isDefault — убираем у остальных
     if (data.isDefault) {
       await prisma.orgRequisites.updateMany({
         where: { organizationId: orgId, isDefault: true },
@@ -85,7 +78,6 @@ export async function settingsRoutes(app: FastifyInstance) {
       });
     }
 
-    // Если это первые реквизиты — автоматически дефолт
     const count = await prisma.orgRequisites.count({ where: { organizationId: orgId } });
     if (count === 0) data.isDefault = true;
 
@@ -100,7 +92,6 @@ export async function settingsRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: item });
   });
 
-  // PATCH /api/settings/requisites/:id — Обновить юрлицо
   app.patch("/requisites/:id", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -119,7 +110,6 @@ export async function settingsRoutes(app: FastifyInstance) {
 
     const data = parsed.data;
 
-    // Если ставим isDefault — убираем у остальных
     if (data.isDefault) {
       await prisma.orgRequisites.updateMany({
         where: { organizationId: orgId, isDefault: true, id: { not: id } },
@@ -150,7 +140,6 @@ export async function settingsRoutes(app: FastifyInstance) {
     });
     if (!existing) throw new NotFoundError("Реквизиты");
 
-    // Проверяем, не привязаны ли клиенты
     const linkedClients = await prisma.client.count({
       where: { ourRequisitesId: id },
     });
@@ -163,10 +152,6 @@ export async function settingsRoutes(app: FastifyInstance) {
     await prisma.orgRequisites.delete({ where: { id } });
     reply.send({ success: true, data: { deleted: true } });
   });
-
-  // ==========================================
-  // REFERENCE LISTS (СПРАВОЧНИКИ)
-  // ==========================================
 
   // GET /api/settings/references?type=expense_category
   app.get("/references", async (request, reply) => {
@@ -185,7 +170,6 @@ export async function settingsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: items });
   });
 
-  // GET /api/settings/references/types — Список всех типов справочников
   app.get("/references/types", async (request, reply) => {
     const orgId = request.user.organizationId;
 
@@ -220,7 +204,6 @@ export async function settingsRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /api/settings/references — Создать элемент справочника
   app.post("/references", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -239,7 +222,6 @@ export async function settingsRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: item });
   });
 
-  // POST /api/settings/references/bulk — Массовое создание (для сеяния)
   app.post("/references/bulk", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -318,7 +300,6 @@ export async function settingsRoutes(app: FastifyInstance) {
     });
     if (!existing) throw new NotFoundError("Элемент справочника");
 
-    // Удаляем вместе с дочерними
     await prisma.referenceList.deleteMany({
       where: { OR: [{ id }, { parentId: id }] },
     });
@@ -326,13 +307,11 @@ export async function settingsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // POST /api/settings/references/seed-missing — Досеивает справочники для существующих организаций
   app.post("/references/seed-missing", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
     const orgId = request.user.organizationId;
 
-    // Полный набор справочников (такой же как в auth.service.ts seed)
     const allDefaults = [
       { type: "expense_category", code: "salary", name: "Зарплата", sortOrder: 1 },
       { type: "expense_category", code: "materials", name: "Материалы", sortOrder: 2 },
@@ -391,7 +370,6 @@ export async function settingsRoutes(app: FastifyInstance) {
       { type: "material_unit", code: "kg", name: "кг", sortOrder: 6 },
     ];
 
-    // Upsert: создаём только те, которых ещё нет
     const results = await prisma.$transaction(
       allDefaults.map(item =>
         prisma.referenceList.upsert({

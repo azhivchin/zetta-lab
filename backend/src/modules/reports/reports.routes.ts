@@ -6,7 +6,6 @@ import { Prisma } from "@prisma/client";
 export async function reportsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // GET /api/reports/clients — Отчёт по заказчикам
   app.get("/clients", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -73,7 +72,6 @@ export async function reportsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { report, summary } });
   });
 
-  // GET /api/reports/technicians — Отчёт по техникам
   app.get("/technicians", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -153,7 +151,6 @@ export async function reportsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { report, summary } });
   });
 
-  // GET /api/reports/finance — Финансовый отчёт (P&L)
   app.get("/finance", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -258,7 +255,6 @@ export async function reportsRoutes(app: FastifyInstance) {
     });
   });
 
-  // GET /api/reports/warehouse — Отчёт по складу
   app.get("/warehouse", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -310,7 +306,6 @@ export async function reportsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { report, summary } });
   });
 
-  // GET /api/reports/client-detail/:clientId — Детальный отчёт по клиенту за период
   app.get("/client-detail/:clientId", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -335,7 +330,6 @@ export async function reportsRoutes(app: FastifyInstance) {
     if (to) dateFilter.lte = new Date(to);
     const hasDateFilter = from || to;
 
-    // Заказы с позициями
     const orders = await prisma.order.findMany({
       where: {
         organizationId: orgId,
@@ -352,7 +346,6 @@ export async function reportsRoutes(app: FastifyInstance) {
       orderBy: { receivedAt: "asc" },
     });
 
-    // Оплаты
     const payments = await prisma.payment.findMany({
       where: {
         clientId,
@@ -362,7 +355,6 @@ export async function reportsRoutes(app: FastifyInstance) {
       orderBy: { date: "asc" },
     });
 
-    // Собираем детальный отчёт
     let totalAmount = 0;
     let totalDiscount = 0;
     let totalFinal = 0;
@@ -448,7 +440,6 @@ export async function reportsRoutes(app: FastifyInstance) {
     });
   });
 
-  // GET /api/reports/tech-orders — Матрица заказов по техникам
   app.get("/tech-orders", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -521,7 +512,6 @@ export async function reportsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { technicians, orders } });
   });
 
-  // GET /api/reports/order-profitability — Рентабельность по заказам
   app.get("/order-profitability", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -627,7 +617,6 @@ export async function reportsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { orders: profitability, summary } });
   });
 
-  // GET /api/reports/orders-summary — Сводка по нарядам
   app.get("/orders-summary", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {

@@ -5,9 +5,7 @@ import { ValidationError, NotFoundError } from "../../lib/errors.js";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
-// ==========================================
 // SCHEMAS
-// ==========================================
 
 const createPriceListSchema = z.object({
   name: z.string().min(2, "Название: минимум 2 символа"),
@@ -29,11 +27,6 @@ const bulkUpsertSchema = z.object({
 export async function pricingRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // ==========================================
-  // CRUD ПРАЙС-ЛИСТОВ
-  // ==========================================
-
-  // GET /api/pricing — Все прайс-листы
   app.get("/", async (request, reply) => {
     const orgId = request.user.organizationId;
     const { type } = request.query as { type?: string };
@@ -52,7 +45,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: priceLists });
   });
 
-  // GET /api/pricing/:id — Один прайс с позициями
   app.get("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const orgId = request.user.organizationId;
@@ -81,7 +73,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: priceList });
   });
 
-  // POST /api/pricing — Создать прайс-лист
   app.post("/", async (request, reply) => {
     const parsed = createPriceListSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -91,7 +82,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     const orgId = request.user.organizationId;
     const data = parsed.data;
 
-    // Если ставим isDefault — убираем у остальных
     if (data.isDefault) {
       await prisma.priceList.updateMany({
         where: { organizationId: orgId, isDefault: true },
@@ -115,7 +105,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: priceList });
   });
 
-  // PATCH /api/pricing/:id — Обновить прайс-лист
   app.patch("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const orgId = request.user.organizationId;
@@ -161,7 +150,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     });
     if (!existing) throw new NotFoundError("Прайс-лист");
 
-    // Cascade delete items и clientPriceLists
     await prisma.$transaction([
       prisma.clientPriceList.deleteMany({ where: { priceListId: id } }),
       prisma.priceList.delete({ where: { id } }),
@@ -170,11 +158,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ==========================================
-  // ПОЗИЦИИ ПРАЙС-ЛИСТА
-  // ==========================================
-
-  // PUT /api/pricing/:id/items — Bulk upsert позиций
   app.put("/:id/items", async (request, reply) => {
     const { id } = request.params as { id: string };
     const orgId = request.user.organizationId;
@@ -211,7 +194,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { upserted: results.length } });
   });
 
-  // DELETE /api/pricing/:id/items/:workItemId — Удалить позицию
   app.delete("/:id/items/:workItemId", async (request, reply) => {
     const { id, workItemId } = request.params as { id: string; workItemId: string };
     const orgId = request.user.organizationId;
@@ -228,11 +210,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ==========================================
-  // КЛОНИРОВАНИЕ
-  // ==========================================
-
-  // POST /api/pricing/:id/clone — Клонировать прайс-лист
   app.post("/:id/clone", async (request, reply) => {
     const { id } = request.params as { id: string };
     const orgId = request.user.organizationId;
@@ -267,11 +244,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: clone });
   });
 
-  // ==========================================
-  // ПРИВЯЗКА К КЛИЕНТАМ
-  // ==========================================
-
-  // POST /api/pricing/:id/clients — Привязать прайс-лист к клиенту
   app.post("/:id/clients", async (request, reply) => {
     const { id } = request.params as { id: string };
     const orgId = request.user.organizationId;
@@ -293,7 +265,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: link });
   });
 
-  // DELETE /api/pricing/:id/clients/:clientId — Отвязать прайс-лист от клиента
   app.delete("/:id/clients/:clientId", async (request, reply) => {
     const { id, clientId } = request.params as { id: string; clientId: string };
 
@@ -304,11 +275,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ==========================================
-  // МАТРИЦА (РАБОТЫ × ПРАЙС-ЛИСТЫ)
-  // ==========================================
-
-  // GET /api/pricing/matrix — Матричный view всех работ и прайсов
   app.get("/matrix", async (request, reply) => {
     const orgId = request.user.organizationId;
 
@@ -327,7 +293,6 @@ export async function pricingRoutes(app: FastifyInstance) {
       }),
     ]);
 
-    // Строим матрицу: workItem → { priceListId → price }
     const matrix = workItems.map(wi => {
       const prices: Record<string, number | null> = {};
       for (const pl of priceLists) {
@@ -349,10 +314,6 @@ export async function pricingRoutes(app: FastifyInstance) {
 
     reply.send({ success: true, data: { columns, rows: matrix } });
   });
-
-  // ==========================================
-  // СРАВНЕНИЕ ДВУХ ПРАЙСОВ
-  // ==========================================
 
   // GET /api/pricing/compare?a=<id>&b=<id>
   app.get("/compare", async (request, reply) => {
@@ -383,7 +344,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     if (!listA) throw new NotFoundError("Прайс-лист A");
     if (!listB) throw new NotFoundError("Прайс-лист B");
 
-    // Собираем все уникальные workItemId
     const allWorkItemIds = new Set([
       ...listA.items.map(i => i.workItemId),
       ...listB.items.map(i => i.workItemId),
@@ -413,11 +373,6 @@ export async function pricingRoutes(app: FastifyInstance) {
     });
   });
 
-  // ==========================================
-  // КАСКАД РАЗРЕШЕНИЯ ЦЕНЫ
-  // ==========================================
-
-  // GET /api/pricing/resolve?clientId=X&workItemId=Y — Получить цену с каскадом
   app.get("/resolve", async (request, reply) => {
     const { clientId, workItemId } = request.query as { clientId: string; workItemId: string };
 
@@ -430,15 +385,10 @@ export async function pricingRoutes(app: FastifyInstance) {
   });
 }
 
-// ==========================================
-// ЭКСПОРТ: Функция каскада цен (для orders)
-// ==========================================
-
 export async function resolvePrice(
   clientId: string,
   workItemId: string
 ): Promise<{ price: number; source: "client_override" | "price_list" | "base_price"; priceListName?: string }> {
-  // 1. Индивидуальная цена клиента (ClientPriceItem)
   const clientPrice = await prisma.clientPriceItem.findUnique({
     where: { clientId_workItemId: { clientId, workItemId } },
   });
@@ -446,7 +396,6 @@ export async function resolvePrice(
     return { price: Number(clientPrice.price), source: "client_override" };
   }
 
-  // 2. Цена из привязанного прайс-листа (ClientPriceList → PriceListItem)
   const clientPriceLists = await prisma.clientPriceList.findMany({
     where: { clientId },
     include: {
@@ -471,7 +420,6 @@ export async function resolvePrice(
     }
   }
 
-  // 3. Базовая цена из каталога (WorkItem.basePrice)
   const workItem = await prisma.workItem.findUnique({
     where: { id: workItemId },
     select: { basePrice: true },

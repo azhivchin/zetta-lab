@@ -17,7 +17,6 @@ const markPaidSchema = z.object({
 export async function salaryRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // GET /api/salary/records — Ведомость зарплат
   app.get("/records", async (request, reply) => {
     const { period, userId, isPaid } = request.query as Record<string, string>;
     const orgId = request.user.organizationId;
@@ -50,7 +49,6 @@ export async function salaryRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /api/salary/calculate — Рассчитать зарплату за период
   app.post("/calculate", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -178,7 +176,6 @@ export async function salaryRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: results });
   });
 
-  // PATCH /api/salary/pay — Отметить зарплату как выплаченную
   app.patch("/pay", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -198,7 +195,6 @@ export async function salaryRoutes(app: FastifyInstance) {
     reply.send({ success: true, message: "Зарплата отмечена как выплаченная" });
   });
 
-  // GET /api/salary/by-department — Зарплата по отделам с помесячной разбивкой
   app.get("/by-department", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -253,7 +249,6 @@ export async function salaryRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { departments, year: y } });
   });
 
-  // GET /api/salary/decomposition — Зарплата с разбивкой по типу работы
   app.get("/decomposition", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -338,7 +333,6 @@ export async function salaryRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { technicians, processTotals, processLabels: PROCESS_LABELS, period: currentPeriod } });
   });
 
-  // GET /api/salary/technician/:id — Детализация по технику
   app.get("/technician/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
 

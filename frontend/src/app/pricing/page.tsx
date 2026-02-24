@@ -10,9 +10,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 
-// ==========================================
 // TYPES
-// ==========================================
 
 interface PriceList {
   id: string;
@@ -64,9 +62,7 @@ const EMPTY_FORM = {
   name: "", code: "", type: "CLIENT", validFrom: "", validTo: "", isActive: true, isDefault: false,
 };
 
-// ==========================================
 // COMPONENT
-// ==========================================
 
 export default function PricingPage() {
   const router = useRouter();
@@ -102,9 +98,7 @@ export default function PricingPage() {
     if (!getToken()) router.replace("/login");
   }, [router]);
 
-  // ==========================================
   // PRICE LISTS
-  // ==========================================
 
   const fetchLists = useCallback(async () => {
     setLoading(true);
@@ -184,9 +178,7 @@ export default function PricingPage() {
     } catch (e) { console.error(e); }
   };
 
-  // ==========================================
   // MATRIX
-  // ==========================================
 
   const fetchMatrix = useCallback(async () => {
     setLoadingMatrix(true);
@@ -216,7 +208,6 @@ export default function PricingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: [{ workItemId, price: value }] }),
       });
-      // Обновляем локально
       setMatrixRows(prev => prev.map((row, i) => {
         if (i !== rowIdx) return row;
         return { ...row, prices: { ...row.prices, [colId]: value } };
@@ -225,9 +216,7 @@ export default function PricingPage() {
     setEditingCell(null);
   };
 
-  // ==========================================
   // COMPARE
-  // ==========================================
 
   const fetchCompare = useCallback(async () => {
     if (!compareA || !compareB || compareA === compareB) return;
@@ -248,9 +237,7 @@ export default function PricingPage() {
 
   const fmt = (n: number | null) => n !== null ? n.toLocaleString("ru-RU", { maximumFractionDigits: 0 }) : "—";
 
-  // ==========================================
   // RENDER
-  // ==========================================
 
   return (
     <div className="flex h-screen bg-gray-50">

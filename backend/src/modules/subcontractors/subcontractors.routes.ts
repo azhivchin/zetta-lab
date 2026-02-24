@@ -32,8 +32,6 @@ const createOrderSchema = z.object({
 export async function subcontractorsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // ======== CRUD СУБПОДРЯДЧИКОВ ========
-
   // GET /api/subcontractors
   app.get("/", async (request, reply) => {
     const orgId = request.user.organizationId;
@@ -131,7 +129,6 @@ export async function subcontractorsRoutes(app: FastifyInstance) {
     const existing = await prisma.subcontractor.findFirst({ where: { id, organizationId: orgId } });
     if (!existing) throw new NotFoundError("Субподрядчик");
 
-    // Мягкое удаление — деактивируем
     await prisma.subcontractor.update({
       where: { id },
       data: { isActive: false },
@@ -140,9 +137,6 @@ export async function subcontractorsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ======== ЗАКАЗЫ СУБПОДРЯДЧИКАМ ========
-
-  // POST /api/subcontractors/orders — Отправить работу субподрядчику
   app.post("/orders", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -153,7 +147,6 @@ export async function subcontractorsRoutes(app: FastifyInstance) {
 
     const orgId = request.user.organizationId;
 
-    // Проверяем субподрядчика и наряд
     const [sub, order] = await Promise.all([
       prisma.subcontractor.findFirst({ where: { id: parsed.data.subcontractorId, organizationId: orgId } }),
       prisma.order.findFirst({ where: { id: parsed.data.orderId, organizationId: orgId } }),
@@ -179,7 +172,6 @@ export async function subcontractorsRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: subOrder });
   });
 
-  // PATCH /api/subcontractors/orders/:id — Обновить статус
   app.patch("/orders/:id", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -212,8 +204,6 @@ export async function subcontractorsRoutes(app: FastifyInstance) {
 
     reply.send({ success: true, data: updated });
   });
-
-  // ======== РАСЧЁТЫ ЗА ПЕРИОД ========
 
   // GET /api/subcontractors/:id/settlements?dateFrom=...&dateTo=...
   app.get("/:id/settlements", async (request, reply) => {
@@ -254,9 +244,6 @@ export async function subcontractorsRoutes(app: FastifyInstance) {
     });
   });
 
-  // ======== ЦЕНЫ СУБПОДРЯДЧИКА ========
-
-  // GET /api/subcontractors/:id/prices — Индивидуальные цены
   app.get("/:id/prices", async (request, reply) => {
     const { id } = request.params as { id: string };
     const orgId = request.user.organizationId;
@@ -275,7 +262,6 @@ export async function subcontractorsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: prices });
   });
 
-  // PUT /api/subcontractors/:id/prices — Установить/обновить цену
   app.put("/:id/prices", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -302,7 +288,6 @@ export async function subcontractorsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: priceItem });
   });
 
-  // DELETE /api/subcontractors/:id/prices/:workItemId — Удалить цену
   app.delete("/:id/prices/:workItemId", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -316,9 +301,6 @@ export async function subcontractorsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ======== СВОДКА ========
-
-  // GET /api/subcontractors/summary — Общая сводка по субподрядчикам
   app.get("/summary", async (request, reply) => {
     const orgId = request.user.organizationId;
 

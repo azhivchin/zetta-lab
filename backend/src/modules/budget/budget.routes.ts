@@ -12,7 +12,6 @@ const upsertTargetSchema = z.object({
   })),
 });
 
-// Категории P&L (fallback если справочник пуст)
 const FALLBACK_PL_CATEGORIES = [
   { key: "revenue", label: "Выручка", type: "income" },
   { key: "salary", label: "Зарплата", type: "expense" },
@@ -42,41 +41,33 @@ async function getPlCategories(orgId: string): Promise<Array<{ key: string; labe
 export async function budgetRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // ======== P&L ЗА ПЕРИОД ========
-
-  // GET /api/budget/pl?year=2026&month=02 — P&L за месяц или год
   app.get("/pl", async (request, reply) => {
     const orgId = request.user.organizationId;
     const { year, month } = request.query as { year?: string; month?: string };
 
     const y = parseInt(year || String(new Date().getFullYear()));
 
-    // Определяем диапазон дат
     let dateFrom: Date;
     let dateTo: Date;
     let periods: string[];
 
     if (month) {
-      // Один месяц
       const m = parseInt(month) - 1;
       dateFrom = new Date(y, m, 1);
       dateTo = new Date(y, m + 1, 0, 23, 59, 59);
       periods = [`${y}-${String(m + 1).padStart(2, "0")}`];
     } else {
-      // Весь год
       dateFrom = new Date(y, 0, 1);
       dateTo = new Date(y, 11, 31, 23, 59, 59);
       periods = Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, "0")}`);
     }
 
-    // Факт: собираем данные из разных таблиц
     const [
       revenue,
       expensesByCategory,
       salaryTotal,
       creditPayments,
     ] = await Promise.all([
-      // Выручка = сумма оплат от клиентов
       prisma.payment.aggregate({
         where: {
           client: { organizationId: orgId },
@@ -84,7 +75,6 @@ export async function budgetRoutes(app: FastifyInstance) {
         },
         _sum: { amount: true },
       }),
-      // Расходы по категориям
       prisma.expense.groupBy({
         by: ["category"],
         where: {
@@ -93,7 +83,6 @@ export async function budgetRoutes(app: FastifyInstance) {
         },
         _sum: { amount: true },
       }),
-      // Зарплата
       prisma.salaryRecord.aggregate({
         where: {
           user: { organizationId: orgId },
@@ -102,7 +91,6 @@ export async function budgetRoutes(app: FastifyInstance) {
         },
         _sum: { amount: true },
       }),
-      // Платежи по кредитам
       prisma.creditPayment.aggregate({
         where: {
           credit: { organizationId: orgId },
@@ -112,7 +100,6 @@ export async function budgetRoutes(app: FastifyInstance) {
       }),
     ]);
 
-    // План: из BudgetTarget
     const targets = await prisma.budgetTarget.findMany({
       where: {
         organizationId: orgId,
@@ -120,13 +107,11 @@ export async function budgetRoutes(app: FastifyInstance) {
       },
     });
 
-    // Собираем план по категориям (суммируем если несколько месяцев)
     const planByCategory: Record<string, number> = {};
     for (const t of targets) {
       planByCategory[t.category] = (planByCategory[t.category] || 0) + Number(t.amount);
     }
 
-    // Собираем факт по категориям
     const expenseMap: Record<string, number> = {};
     for (const e of expensesByCategory) {
       expenseMap[e.category] = Number(e._sum.amount || 0);
@@ -136,7 +121,6 @@ export async function budgetRoutes(app: FastifyInstance) {
     const salaryNum = Number(salaryTotal._sum.amount || 0);
     const creditNum = Number(creditPayments._sum.amount || 0);
 
-    // Строим P&L строки
     const plCategories = await getPlCategories(orgId);
     const rows = plCategories.map(cat => {
       let fact: number;
@@ -164,7 +148,6 @@ export async function budgetRoutes(app: FastifyInstance) {
       };
     });
 
-    // Итоги
     const totalRevenue = rows.find(r => r.category === "revenue")?.fact || 0;
     const totalExpenses = rows.filter(r => r.type === "expense").reduce((s, r) => s + r.fact, 0);
     const grossMargin = totalRevenue - totalExpenses;
@@ -192,9 +175,6 @@ export async function budgetRoutes(app: FastifyInstance) {
     });
   });
 
-  // ======== P&L ПОМЕСЯЧНО (ТАБЛИЦА) ========
-
-  // GET /api/budget/pl-monthly?year=2026 — P&L по месяцам
   app.get("/pl-monthly", async (request, reply) => {
     const orgId = request.user.organizationId;
     const y = parseInt((request.query as { year?: string }).year || String(new Date().getFullYear()));
@@ -257,9 +237,6 @@ export async function budgetRoutes(app: FastifyInstance) {
     });
   });
 
-  // ======== ПЛАН (BUDGET TARGETS) ========
-
-  // GET /api/budget/targets?year=2026 — Плановые значения
   app.get("/targets", async (request, reply) => {
     const orgId = request.user.organizationId;
     const y = (request.query as { year?: string }).year || String(new Date().getFullYear());
@@ -275,7 +252,6 @@ export async function budgetRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: targets });
   });
 
-  // PUT /api/budget/targets — Bulk upsert плановых значений
   app.put("/targets", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -310,9 +286,6 @@ export async function budgetRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { upserted: results.length } });
   });
 
-  // ======== КАТЕГОРИИ P&L ========
-
-  // GET /api/budget/categories — Список категорий P&L
   app.get("/categories", async (request, reply) => {
     const orgId = request.user.organizationId;
     const categories = await getPlCategories(orgId);

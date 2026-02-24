@@ -28,9 +28,6 @@ const createPaymentSchema = z.object({
 export async function creditsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // ======== CRUD КРЕДИТОВ ========
-
-  // GET /api/credits — Все кредиты
   app.get("/", async (request, reply) => {
     const orgId = request.user.organizationId;
     const { isActive } = request.query as { isActive?: string };
@@ -46,14 +43,12 @@ export async function creditsRoutes(app: FastifyInstance) {
       },
     });
 
-    // Итоги
     const totalDebt = credits.filter(c => c.isActive).reduce((sum, c) => sum + Number(c.remainingAmount), 0);
     const totalMonthly = credits.filter(c => c.isActive).reduce((sum, c) => sum + Number(c.monthlyPayment || 0), 0);
 
     reply.send({ success: true, data: { credits, totalDebt, totalMonthly } });
   });
 
-  // GET /api/credits/:id — Детали кредита с историей платежей
   app.get("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const orgId = request.user.organizationId;
@@ -82,7 +77,6 @@ export async function creditsRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /api/credits — Создать кредит
   app.post("/", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -111,7 +105,6 @@ export async function creditsRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: credit });
   });
 
-  // PATCH /api/credits/:id — Обновить кредит
   app.patch("/:id", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -156,9 +149,6 @@ export async function creditsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ======== ПЛАТЕЖИ ПО КРЕДИТАМ ========
-
-  // POST /api/credits/payments — Внести платёж по кредиту
   app.post("/payments", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -171,7 +161,6 @@ export async function creditsRoutes(app: FastifyInstance) {
     const credit = await prisma.credit.findFirst({ where: { id: parsed.data.creditId, organizationId: orgId } });
     if (!credit) throw new NotFoundError("Кредит");
 
-    // Транзакция: создать платёж + уменьшить остаток + (опционально) уменьшить баланс счёта
     const payment = await prisma.$transaction(async (tx) => {
       const p = await tx.creditPayment.create({
         data: {
@@ -185,7 +174,6 @@ export async function creditsRoutes(app: FastifyInstance) {
         },
       });
 
-      // Уменьшаем остаток кредита на сумму тела (principal) или на полную сумму
       const principalAmount = parsed.data.principal ?? parsed.data.amount;
       const newRemaining = Math.max(0, Number(credit.remainingAmount) - principalAmount);
 
@@ -197,7 +185,6 @@ export async function creditsRoutes(app: FastifyInstance) {
         },
       });
 
-      // Если указан счёт — уменьшаем баланс
       if (parsed.data.accountId) {
         await tx.paymentAccount.update({
           where: { id: parsed.data.accountId },
@@ -211,9 +198,6 @@ export async function creditsRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: payment });
   });
 
-  // ======== ДАШБОРД ДОЛГОВ ========
-
-  // GET /api/credits/dashboard — Сводка по долгам
   app.get("/dashboard", async (request, reply) => {
     const orgId = request.user.organizationId;
 
@@ -229,7 +213,6 @@ export async function creditsRoutes(app: FastifyInstance) {
     const totalMonthly = credits.reduce((sum, c) => sum + Number(c.monthlyPayment || 0), 0);
     const totalOriginal = credits.reduce((sum, c) => sum + Number(c.totalAmount), 0);
 
-    // Платежи за этот месяц
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);

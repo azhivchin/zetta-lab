@@ -105,7 +105,6 @@ export function amountInWords(amount: number): string {
   const kopecksStr = String(kopecks).padStart(2, "0");
   const kopecksUnit = pluralize(kopecks, ["копейка", "копейки", "копеек"]);
 
-  // Первая буква заглавная
   const capitalized = rublesText.charAt(0).toUpperCase() + rublesText.slice(1);
 
   return `${capitalized} ${rublesUnit} ${kopecksStr} ${kopecksUnit}`;

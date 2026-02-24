@@ -6,7 +6,6 @@ import { authenticate } from "../../middleware/auth.js";
 export async function dashboardRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // GET /api/dashboard — Сводка для дашборда
   app.get("/", async (request, reply) => {
     const orgId = request.user.organizationId;
     const cacheKey = `dashboard:${orgId}`;

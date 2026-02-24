@@ -91,7 +91,6 @@ export async function suppliersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // GET /api/suppliers/:id/purchases — история закупок
   app.get("/:id/purchases", async (request, reply) => {
     const { id } = request.params as { id: string };
     const orgId = request.user.organizationId;

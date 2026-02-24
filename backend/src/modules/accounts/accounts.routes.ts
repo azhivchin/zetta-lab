@@ -24,9 +24,6 @@ const transferSchema = z.object({
 export async function accountsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // ======== CRUD СЧЕТОВ ========
-
-  // GET /api/accounts — Все счета организации
   app.get("/", async (request, reply) => {
     const orgId = request.user.organizationId;
 
@@ -35,13 +32,11 @@ export async function accountsRoutes(app: FastifyInstance) {
       orderBy: [{ isDefault: "desc" }, { name: "asc" }],
     });
 
-    // Общий баланс
     const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
 
     reply.send({ success: true, data: { accounts, totalBalance } });
   });
 
-  // POST /api/accounts — Создать счёт
   app.post("/", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -52,7 +47,6 @@ export async function accountsRoutes(app: FastifyInstance) {
 
     const orgId = request.user.organizationId;
 
-    // Если ставим isDefault — убираем у остальных
     if (parsed.data.isDefault) {
       await prisma.paymentAccount.updateMany({
         where: { organizationId: orgId, isDefault: true },
@@ -75,7 +69,6 @@ export async function accountsRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: account });
   });
 
-  // PATCH /api/accounts/:id — Обновить счёт
   app.patch("/:id", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -119,7 +112,6 @@ export async function accountsRoutes(app: FastifyInstance) {
     });
     if (!existing) throw new NotFoundError("Счёт");
 
-    // Отвязываем платежи и расходы (не удаляем!)
     await prisma.$transaction([
       prisma.payment.updateMany({ where: { accountId: id }, data: { accountId: null } }),
       prisma.expense.updateMany({ where: { accountId: id }, data: { accountId: null } }),
@@ -129,9 +121,6 @@ export async function accountsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ======== ПЕРЕВОДЫ ========
-
-  // GET /api/accounts/transfers — История переводов
   app.get("/transfers", async (request, reply) => {
     const orgId = request.user.organizationId;
     const { page = "1", limit = "50" } = request.query as Record<string, string>;
@@ -153,7 +142,6 @@ export async function accountsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: transfers });
   });
 
-  // POST /api/accounts/transfers — Перевод между счетами
   app.post("/transfers", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -168,7 +156,6 @@ export async function accountsRoutes(app: FastifyInstance) {
       throw new ValidationError("Нельзя переводить на тот же счёт");
     }
 
-    // Проверяем оба счёта
     const [from, to] = await Promise.all([
       prisma.paymentAccount.findFirst({ where: { id: parsed.data.fromAccountId, organizationId: orgId } }),
       prisma.paymentAccount.findFirst({ where: { id: parsed.data.toAccountId, organizationId: orgId } }),
@@ -176,7 +163,6 @@ export async function accountsRoutes(app: FastifyInstance) {
     if (!from) throw new NotFoundError("Счёт-источник");
     if (!to) throw new NotFoundError("Счёт-получатель");
 
-    // Транзакция: создаём перевод + обновляем балансы
     const transfer = await prisma.$transaction(async (tx) => {
       const t = await tx.accountTransfer.create({
         data: {
@@ -208,9 +194,6 @@ export async function accountsRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: transfer });
   });
 
-  // ======== ПЕРЕСЧЁТ БАЛАНСА ========
-
-  // POST /api/accounts/:id/recalculate — Пересчитать баланс по операциям
   app.post("/:id/recalculate", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -222,7 +205,6 @@ export async function accountsRoutes(app: FastifyInstance) {
     });
     if (!account) throw new NotFoundError("Счёт");
 
-    // Считаем баланс по всем операциям
     const [income, expenses, transfersOut, transfersIn, creditPay] = await Promise.all([
       prisma.payment.aggregate({ where: { accountId: id }, _sum: { amount: true } }),
       prisma.expense.aggregate({ where: { accountId: id }, _sum: { amount: true } }),

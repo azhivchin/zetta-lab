@@ -28,7 +28,6 @@ const movementSchema = z.object({
 export async function warehouseRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // GET /api/warehouse/materials — Список материалов
   app.get("/materials", async (request, reply) => {
     const { search, category, lowStock } = request.query as Record<string, string>;
     const orgId = request.user.organizationId;
@@ -64,7 +63,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { materials: result, categories } });
   });
 
-  // POST /api/warehouse/materials — Создание материала
   app.post("/materials", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -87,7 +85,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: material });
   });
 
-  // PATCH /api/warehouse/materials/:id — Обновление материала
   app.patch("/materials/:id", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -109,7 +106,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: material });
   });
 
-  // POST /api/warehouse/movements — Приход/расход
   app.post("/movements", async (request, reply) => {
     const parsed = movementSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -160,7 +156,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
       }),
     ]);
 
-    // Проверка низкого остатка — уведомление
     if (newStock.lessThan(material.minStock) && !material.currentStock.lessThan(material.minStock)) {
       try {
         await broadcastNotification({
@@ -177,7 +172,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: movement });
   });
 
-  // GET /api/warehouse/movements — История движений
   app.get("/movements", async (request, reply) => {
     const { materialId, type, page = "1", limit = "50" } = request.query as Record<string, string>;
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -207,9 +201,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
     });
   });
 
-  // ======== MATERIAL NORMS ========
-
-  // GET /api/warehouse/norms — Список норм расхода
   app.get("/norms", async (request, reply) => {
     const { workItemId, materialId } = request.query as Record<string, string>;
 
@@ -231,7 +222,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: norms });
   });
 
-  // PUT /api/warehouse/norms — Создать/обновить норму расхода
   app.put("/norms", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -264,7 +254,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: norm });
   });
 
-  // DELETE /api/warehouse/norms/:id — Удалить норму
   app.delete("/norms/:id", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -282,7 +271,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // POST /api/warehouse/write-off-order — Списать материалы по наряду
   app.post("/write-off-order", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -378,7 +366,6 @@ export async function warehouseRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { movements, alerts } });
   });
 
-  // GET /api/warehouse/alerts — Материалы ниже минимума
   app.get("/alerts", async (request, reply) => {
     const materials = await prisma.material.findMany({
       where: {

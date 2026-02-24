@@ -46,7 +46,6 @@ export class AuthService {
         },
       });
 
-      // Создаём базовые категории работ
       const categories = [
         { code: "1", name: "Цифровые работы", sortOrder: 1 },
         { code: "2", name: "Несъёмное протезирование", sortOrder: 2 },
@@ -62,9 +61,7 @@ export class AuthService {
         });
       }
 
-      // Сеем дефолтные справочники
       const defaultReferences = [
-        // Категории расходов
         { type: "expense_category", code: "salary", name: "Зарплата", sortOrder: 1 },
         { type: "expense_category", code: "materials", name: "Материалы", sortOrder: 2 },
         { type: "expense_category", code: "rent", name: "Аренда", sortOrder: 3 },
@@ -72,23 +69,19 @@ export class AuthService {
         { type: "expense_category", code: "logistics", name: "Логистика", sortOrder: 5 },
         { type: "expense_category", code: "utilities", name: "Коммунальные услуги", sortOrder: 6 },
         { type: "expense_category", code: "other", name: "Прочее", sortOrder: 7 },
-        // Отделы
         { type: "department", code: "cad", name: "CAD/CAM", sortOrder: 1 },
         { type: "department", code: "ceramic", name: "Керамика", sortOrder: 2 },
         { type: "department", code: "gypsum", name: "Гипсовочная", sortOrder: 3 },
         { type: "department", code: "assembly", name: "Сборка", sortOrder: 4 },
         { type: "department", code: "removable", name: "Съёмное", sortOrder: 5 },
-        // Типы договоров
         { type: "contract_type", code: "service", name: "Сервисный", sortOrder: 1 },
         { type: "contract_type", code: "subcontract", name: "Подряд", sortOrder: 2 },
         { type: "contract_type", code: "individual", name: "С физлицом", sortOrder: 3 },
-        // Направления курьера
         { type: "courier_direction", code: "north", name: "Север", sortOrder: 1 },
         { type: "courier_direction", code: "south", name: "Юг", sortOrder: 2 },
         { type: "courier_direction", code: "east", name: "Восток", sortOrder: 3 },
         { type: "courier_direction", code: "west", name: "Запад", sortOrder: 4 },
         { type: "courier_direction", code: "center", name: "Центр", sortOrder: 5 },
-        // Причины переделок (7 реальных категорий из зуботехники)
         { type: "rework_reason", code: "ceramic_chip", name: "Скол керамики", sortOrder: 1 },
         { type: "rework_reason", code: "fit_issue", name: "Проблема посадки", sortOrder: 2 },
         { type: "rework_reason", code: "color_mismatch", name: "Несоответствие цвета", sortOrder: 3 },
@@ -96,16 +89,13 @@ export class AuthService {
         { type: "rework_reason", code: "cad_error", name: "Ошибка CAD", sortOrder: 5 },
         { type: "rework_reason", code: "impression_issue", name: "Проблема слепка", sortOrder: 6 },
         { type: "rework_reason", code: "other", name: "Прочее", sortOrder: 7 },
-        // Способы оплаты
         { type: "payment_method", code: "cash", name: "Наличные", sortOrder: 1 },
         { type: "payment_method", code: "bank", name: "Безнал", sortOrder: 2 },
         { type: "payment_method", code: "card", name: "Карта", sortOrder: 3 },
-        // Типы счетов
         { type: "account_type", code: "cash", name: "Касса", sortOrder: 1 },
         { type: "account_type", code: "bank", name: "Расчётный счёт", sortOrder: 2 },
         { type: "account_type", code: "card", name: "Карта", sortOrder: 3 },
         { type: "account_type", code: "credit_card", name: "Кредитная карта", sortOrder: 4 },
-        // Категории P&L
         { type: "pl_category", code: "revenue", name: "Выручка", sortOrder: 1, metadata: { type: "income" } },
         { type: "pl_category", code: "salary", name: "Зарплата", sortOrder: 2, metadata: { type: "expense" } },
         { type: "pl_category", code: "materials", name: "Материалы", sortOrder: 3, metadata: { type: "expense" } },
@@ -115,14 +105,12 @@ export class AuthService {
         { type: "pl_category", code: "logistics", name: "Логистика", sortOrder: 7, metadata: { type: "expense" } },
         { type: "pl_category", code: "credit", name: "Кредиты", sortOrder: 8, metadata: { type: "expense" } },
         { type: "pl_category", code: "other", name: "Прочее", sortOrder: 9, metadata: { type: "expense" } },
-        // Этапы производства
         { type: "production_stage", code: "gypsum", name: "Гипсовка", sortOrder: 1 },
         { type: "production_stage", code: "cad", name: "CAD-моделирование", sortOrder: 2 },
         { type: "production_stage", code: "framework", name: "Каркас/фрезеровка", sortOrder: 3 },
         { type: "production_stage", code: "ceramics", name: "Керамика/нанесение", sortOrder: 4 },
         { type: "production_stage", code: "fitting", name: "Примерка", sortOrder: 5 },
         { type: "production_stage", code: "assembly", name: "Финальная сборка", sortOrder: 6 },
-        // Единицы измерения
         { type: "material_unit", code: "pcs", name: "шт", sortOrder: 1 },
         { type: "material_unit", code: "ml", name: "мл", sortOrder: 2 },
         { type: "material_unit", code: "g", name: "г", sortOrder: 3 },
@@ -181,7 +169,6 @@ export class AuthService {
     const accessToken = jwtSign(payload, { expiresIn: "15m" });
     const refreshToken = crypto.randomBytes(40).toString("hex");
 
-    // Сохраняем refresh token
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
 
@@ -193,7 +180,6 @@ export class AuthService {
       },
     });
 
-    // Кэшируем пользователя в Redis
     await redis.setex(
       `user:${user.id}`,
       900, // 15 минут
@@ -240,7 +226,6 @@ export class AuthService {
 
     const accessToken = jwtSign(payload, { expiresIn: "15m" });
 
-    // Ротация refresh token
     const newRefreshToken = crypto.randomBytes(40).toString("hex");
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);

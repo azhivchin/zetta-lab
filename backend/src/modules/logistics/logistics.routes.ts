@@ -29,7 +29,6 @@ const updateStopSchema = z.object({
 export async function logisticsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // GET /api/logistics/routes — Маршруты за дату/период
   app.get("/routes", async (request, reply) => {
     const { date, from, to, courierId } = request.query as Record<string, string>;
     const orgId = request.user.organizationId;
@@ -62,7 +61,6 @@ export async function logisticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: routes });
   });
 
-  // GET /api/logistics/routes/:id — Детали маршрута
   app.get("/routes/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -78,7 +76,6 @@ export async function logisticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: route });
   });
 
-  // POST /api/logistics/routes — Создать маршрут
   app.post("/routes", {
     preHandler: [authorize("OWNER", "ADMIN", "SENIOR_TECH")],
   }, async (request, reply) => {
@@ -108,7 +105,6 @@ export async function logisticsRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: route });
   });
 
-  // PATCH /api/logistics/routes/:id — Обновить маршрут
   app.patch("/routes/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -137,7 +133,6 @@ export async function logisticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: route });
   });
 
-  // PATCH /api/logistics/routes/:id/stop — Отметить остановку выполненной
   app.patch("/routes/:id/stop", async (request, reply) => {
     const { id } = request.params as { id: string };
     const parsed = updateStopSchema.safeParse(request.body);
@@ -172,7 +167,6 @@ export async function logisticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: updated });
   });
 
-  // DELETE /api/logistics/routes/:id — Удалить маршрут
   app.delete("/routes/:id", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -191,7 +185,6 @@ export async function logisticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // GET /api/logistics/couriers — Список курьеров организации
   app.get("/couriers", async (request, reply) => {
     const couriers = await prisma.user.findMany({
       where: {
@@ -206,7 +199,6 @@ export async function logisticsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: couriers });
   });
 
-  // GET /api/logistics/pending-orders — Наряды, ожидающие забора/доставки
   app.get("/pending-orders", async (request, reply) => {
     const { type } = request.query as { type?: string };
     const orgId = request.user.organizationId;

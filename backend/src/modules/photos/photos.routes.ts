@@ -23,7 +23,6 @@ if (!existsSync(UPLOAD_DIR)) {
 export async function photosRoutes(app: FastifyInstance) {
   // NOTE: No global auth hook — file serving must be public for <img> tags
 
-  // POST /api/photos/upload/:orderId — Загрузить фото к наряду
   app.post("/upload/:orderId", { preHandler: [authenticate] }, async (request, reply) => {
     const { orderId } = request.params as { orderId: string };
 
@@ -76,7 +75,6 @@ export async function photosRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: savedPhotos });
   });
 
-  // GET /api/photos/file/:filename — Отдать файл фото
   app.get("/file/:filename", async (request, reply) => {
     const { filename } = request.params as { filename: string };
 
@@ -99,7 +97,6 @@ export async function photosRoutes(app: FastifyInstance) {
     return reply.send(stream);
   });
 
-  // GET /api/photos/order/:orderId — Все фото наряда
   app.get("/order/:orderId", { preHandler: [authenticate] }, async (request, reply) => {
     const { orderId } = request.params as { orderId: string };
 
@@ -116,7 +113,6 @@ export async function photosRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: photos });
   });
 
-  // PATCH /api/photos/:id — Обновить caption/stage фото
   app.patch("/:id", { preHandler: [authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const { caption, stage } = request.body as { caption?: string; stage?: string };
@@ -140,7 +136,6 @@ export async function photosRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: updated });
   });
 
-  // DELETE /api/photos/:id — Удалить фото
   app.delete("/:id", { preHandler: [authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -164,7 +159,6 @@ export async function photosRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // GET /api/photos/gallery — Все фото организации (галерея)
   app.get("/gallery", { preHandler: [authenticate] }, async (request, reply) => {
     const { clientId, page = "1", limit = "20" } = request.query as Record<string, string>;
     const skip = (parseInt(page) - 1) * parseInt(limit);

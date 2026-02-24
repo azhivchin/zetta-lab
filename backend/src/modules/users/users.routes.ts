@@ -26,7 +26,6 @@ const contractSchema = z.object({
 export async function usersRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // GET /api/users — Список пользователей организации
   app.get("/", async (request, reply) => {
     const { role, isActive } = request.query as Record<string, string>;
 
@@ -45,7 +44,6 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: users });
   });
 
-  // GET /api/users/technicians — Только техники (для назначения)
   app.get("/technicians", async (request, reply) => {
     const technicians = await prisma.user.findMany({
       where: {
@@ -59,7 +57,6 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: technicians });
   });
 
-  // GET /api/users/birthdays — Дни рождения (ближайшие)
   app.get("/birthdays", async (request, reply) => {
     const orgId = request.user.organizationId;
 
@@ -69,7 +66,6 @@ export async function usersRoutes(app: FastifyInstance) {
       orderBy: { lastName: "asc" },
     });
 
-    // Сортируем по ближайшему ДР
     const now = new Date();
     const withNext = users.map(u => {
       const bd = new Date(u.birthday!);
@@ -98,14 +94,12 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: user });
   });
 
-  // PATCH /api/users/:id — Обновить пользователя (только OWNER/ADMIN)
   app.patch("/:id", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as Record<string, unknown>;
 
-    // Безопасный список полей
     const allowed: Record<string, unknown> = {};
     const fields = [
       "firstName", "lastName", "patronymic", "phone", "role", "isActive",
@@ -114,7 +108,6 @@ export async function usersRoutes(app: FastifyInstance) {
     for (const f of fields) {
       if (body[f] !== undefined) allowed[f] = body[f];
     }
-    // Даты
     if (body.birthday !== undefined) allowed.birthday = body.birthday ? new Date(body.birthday as string) : null;
     if (body.hireDate !== undefined) allowed.hireDate = body.hireDate ? new Date(body.hireDate as string) : null;
     if (body.salaryCoeff !== undefined) allowed.salaryCoeff = body.salaryCoeff !== null ? Number(body.salaryCoeff) : null;
@@ -127,9 +120,6 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: user });
   });
 
-  // ======== ОТПУСКА ========
-
-  // GET /api/users/vacations/all — Все отпуска организации
   app.get("/vacations/all", async (request, reply) => {
     const orgId = request.user.organizationId;
     const { year } = request.query as { year?: string };
@@ -150,7 +140,6 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: vacations });
   });
 
-  // POST /api/users/vacations — Создать отпуск
   app.post("/vacations", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -181,7 +170,6 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: vacation });
   });
 
-  // PATCH /api/users/vacations/:id — Обновить отпуск
   app.patch("/vacations/:id", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -222,9 +210,6 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ======== ДОГОВОРА ========
-
-  // GET /api/users/contracts/all — Все договора организации
   app.get("/contracts/all", async (request, reply) => {
     const orgId = request.user.organizationId;
     const contracts = await prisma.employeeContract.findMany({
@@ -235,7 +220,6 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: contracts });
   });
 
-  // POST /api/users/contracts — Создать договор
   app.post("/contracts", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {
@@ -263,7 +247,6 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: contract });
   });
 
-  // PATCH /api/users/contracts/:id — Обновить договор
   app.patch("/contracts/:id", {
     preHandler: [authorize("OWNER", "ADMIN")],
   }, async (request, reply) => {

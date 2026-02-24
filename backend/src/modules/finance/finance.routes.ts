@@ -58,7 +58,6 @@ const createExpenseSchema = z.object({
   accountId: z.string().optional(),
 });
 
-// Пересчитать paymentStatus заказа на основе суммы всех платежей
 async function recalcOrderPaymentStatus(orderId: string) {
   const payments = await prisma.payment.aggregate({
     where: { orderId },
@@ -87,9 +86,6 @@ async function recalcOrderPaymentStatus(orderId: string) {
 export async function financeRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
-  // ======== DASHBOARD ========
-
-  // GET /api/finance/summary — Финансовая сводка
   app.get("/summary", async (request, reply) => {
     const orgId = request.user.organizationId;
     const now = new Date();
@@ -158,8 +154,6 @@ export async function financeRoutes(app: FastifyInstance) {
     });
   });
 
-  // ======== INVOICES ========
-
   // GET /api/finance/invoices
   app.get("/invoices", async (request, reply) => {
     const { clientId, isPaid, page = "1", limit = "50" } = request.query as Record<string, string>;
@@ -215,7 +209,6 @@ export async function financeRoutes(app: FastifyInstance) {
 
     const total = parsed.data.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-    // Определяем orgRequisitesId: из запроса, привязанный к клиенту, или дефолт
     let orgRequisitesId = parsed.data.orgRequisitesId;
     if (!orgRequisitesId && client.ourRequisitesId) {
       orgRequisitesId = client.ourRequisitesId;
@@ -227,7 +220,6 @@ export async function financeRoutes(app: FastifyInstance) {
       if (defaultReq) orgRequisitesId = defaultReq.id;
     }
 
-    // Порядковый номер для нумерации в рамках года
     const yearStart = new Date(new Date().getFullYear(), 0, 1);
     const seqCount = await prisma.invoice.count({
       where: { client: { organizationId: request.user.organizationId }, createdAt: { gte: yearStart } },
@@ -261,7 +253,6 @@ export async function financeRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: invoice });
   });
 
-  // PATCH /api/finance/invoices/:id/pay — Отметить как оплаченный
   app.patch("/invoices/:id/pay", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -277,8 +268,6 @@ export async function financeRoutes(app: FastifyInstance) {
     });
     reply.send({ success: true, data: updated });
   });
-
-  // ======== PAYMENTS ========
 
   // GET /api/finance/payments
   app.get("/payments", async (request, reply) => {
@@ -371,8 +360,6 @@ export async function financeRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: payment });
   });
 
-  // ======== EXPENSES ========
-
   // GET /api/finance/expenses
   app.get("/expenses", async (request, reply) => {
     const { category, dateFrom, dateTo, page = "1", limit = "50" } = request.query as Record<string, string>;
@@ -457,7 +444,6 @@ export async function financeRoutes(app: FastifyInstance) {
     reply.status(201).send({ success: true, data: expense });
   });
 
-  // PATCH /api/finance/expenses/:id — Обновить расход
   app.patch("/expenses/:id", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -474,7 +460,6 @@ export async function financeRoutes(app: FastifyInstance) {
     });
     if (!existing) throw new NotFoundError("Расход");
 
-    // Если меняется accountId или amount — нужно пересчитать балансы
     const newAccountId = parsed.data.accountId !== undefined ? parsed.data.accountId : existing.accountId;
     const newAmount = parsed.data.amount !== undefined ? parsed.data.amount : Number(existing.amount);
     const oldAmount = Number(existing.amount);
@@ -596,9 +581,6 @@ export async function financeRoutes(app: FastifyInstance) {
     reply.send({ success: true });
   });
 
-  // ======== PDF GENERATION ========
-
-  // Хелпер: загрузить полные данные для PDF
   async function loadInvoiceForPdf(id: string, orgId: string) {
     const invoice = await prisma.invoice.findFirst({
       where: { id, client: { organizationId: orgId } },
@@ -620,7 +602,6 @@ export async function financeRoutes(app: FastifyInstance) {
     });
     if (!invoice) throw new NotFoundError("Счёт");
 
-    // Если у счёта нет реквизитов — берём из клиента или дефолт
     let requisites = invoice.orgRequisites;
     if (!requisites && invoice.client.ourRequisitesId) {
       requisites = await prisma.orgRequisites.findUnique({ where: { id: invoice.client.ourRequisitesId } });
@@ -636,7 +617,6 @@ export async function financeRoutes(app: FastifyInstance) {
     return { invoice, requisites, org };
   }
 
-  // Хелпер: создать PDF документ и вернуть промис буфера
   function createPdfDoc() {
     const doc = new PDFDocument({ size: "A4", margin: 40 });
     const chunks: Buffer[] = [];
@@ -644,7 +624,6 @@ export async function financeRoutes(app: FastifyInstance) {
     const pdfReady = new Promise<Buffer>((resolve) => {
       doc.on("end", () => resolve(Buffer.concat(chunks)));
     });
-    // Регистрируем кириллические шрифты
     doc.registerFont("PTSans", FONT_REGULAR);
     doc.registerFont("PTSans-Bold", FONT_BOLD);
     doc.font("PTSans");
@@ -654,7 +633,6 @@ export async function financeRoutes(app: FastifyInstance) {
   const fmtNum = (n: number | string | Prisma.Decimal) => Number(n).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDate = (d: Date) => d.toLocaleDateString("ru-RU");
 
-  // Рисуем таблицу позиций
   function drawItemsTable(
     doc: PDFKit.PDFDocument,
     items: Array<{ description: string; quantity: number; price: unknown; total: unknown; order?: { orderNumber: string; toothFormula?: string | null; patient?: { lastName: string; firstName: string; patronymic?: string | null } | null } | null }>,
@@ -690,7 +668,6 @@ export async function financeRoutes(app: FastifyInstance) {
         desc += `${patient}${tooth} [${item.order.orderNumber}]`;
       }
 
-      // Проверяем перенос страницы
       if (y > 740) {
         doc.addPage();
         y = 40;
@@ -710,9 +687,6 @@ export async function financeRoutes(app: FastifyInstance) {
     doc.y = y + 4;
   }
 
-  // ============================================
-  // СЧЁТ (INVOICE) — российский стандарт
-  // ============================================
   app.get("/invoices/:id/pdf", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -725,24 +699,19 @@ export async function financeRoutes(app: FastifyInstance) {
     const LEFT = 40;
     const RIGHT = 555;
 
-    // === Банковская шапка (российский стандарт) ===
     if (requisites) {
       doc.font("PTSans").fontSize(8);
 
-      // Верхняя рамка: банк получателя
       const bankTop = 40;
       doc.rect(LEFT, bankTop, RIGHT - LEFT, 60).lineWidth(0.5).stroke();
       doc.moveTo(LEFT + 260, bankTop).lineTo(LEFT + 260, bankTop + 60).stroke();
       doc.moveTo(LEFT, bankTop + 30).lineTo(RIGHT, bankTop + 30).stroke();
 
-      // БИК и банк
       doc.text(`БИК  ${requisites.bik || ""}`, LEFT + 265, bankTop + 4, { width: 240 });
       doc.text(`Банк получателя: ${requisites.bankName || ""}`, LEFT + 4, bankTop + 4, { width: 250 });
-      // К/с и Р/с
       doc.text(`К/с  ${requisites.correspondentAccount || ""}`, LEFT + 265, bankTop + 34, { width: 240 });
       doc.text(`Р/с  ${requisites.settlementAccount || ""}`, LEFT + 4, bankTop + 34, { width: 250 });
 
-      // Получатель
       const recTop = bankTop + 65;
       doc.rect(LEFT, recTop, RIGHT - LEFT, 40).lineWidth(0.5).stroke();
       doc.moveTo(LEFT + 260, recTop).lineTo(LEFT + 260, recTop + 40).stroke();
@@ -756,7 +725,6 @@ export async function financeRoutes(app: FastifyInstance) {
       doc.y = recTop + 50;
     }
 
-    // === Заголовок счёта ===
     doc.moveDown(0.5);
     doc.font("PTSans-Bold").fontSize(14);
     doc.text(`Счёт на оплату № ${invoice.number} от ${fmtDate(invoice.date)}`, { align: "center" });
@@ -764,7 +732,6 @@ export async function financeRoutes(app: FastifyInstance) {
     doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).lineWidth(1.5).stroke();
     doc.moveDown(0.5);
 
-    // === Поставщик и Покупатель ===
     doc.font("PTSans").fontSize(9);
     if (requisites) {
       doc.font("PTSans-Bold").text("Поставщик: ", { continued: true });
@@ -796,10 +763,8 @@ export async function financeRoutes(app: FastifyInstance) {
 
     doc.moveDown(0.5);
 
-    // === Таблица позиций ===
     drawItemsTable(doc, invoice.items as typeof invoice.items, isDetailed);
 
-    // === Итого ===
     const totalNum = Number(invoice.total);
     doc.moveDown(0.3);
     doc.font("PTSans-Bold").fontSize(10);
@@ -809,7 +774,6 @@ export async function financeRoutes(app: FastifyInstance) {
     doc.moveDown(0.2);
     doc.text(`Всего к оплате: ${fmtNum(totalNum)} руб.`, { align: "right" });
 
-    // Сумма прописью
     doc.moveDown(0.5);
     doc.font("PTSans").fontSize(9);
     doc.text(`Всего наименований ${invoice.items.length}, на сумму ${fmtNum(totalNum)} руб.`);
@@ -826,7 +790,6 @@ export async function financeRoutes(app: FastifyInstance) {
       doc.font("PTSans").fontSize(8).text(`Примечание: ${invoice.notes}`);
     }
 
-    // === Подписи ===
     doc.moveDown(1.5);
     const sigY = doc.y;
     doc.font("PTSans").fontSize(9);
@@ -852,9 +815,6 @@ export async function financeRoutes(app: FastifyInstance) {
     return reply.send(pdfBuffer);
   });
 
-  // ============================================
-  // АКТ ВЫПОЛНЕННЫХ РАБОТ
-  // ============================================
   app.get("/invoices/:id/act-pdf", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -870,7 +830,6 @@ export async function financeRoutes(app: FastifyInstance) {
     const executorName = requisites?.name || org?.name || "Зуботехническая лаборатория";
     const clientLegalName = invoice.client.legalEntityName || invoice.client.name;
 
-    // === Заголовок ===
     doc.font("PTSans-Bold").fontSize(14);
     doc.text("АКТ", { align: "center" });
     doc.fontSize(11).text(`сдачи-приёмки выполненных работ`, { align: "center" });
@@ -884,7 +843,6 @@ export async function financeRoutes(app: FastifyInstance) {
     doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).lineWidth(0.5).stroke();
     doc.moveDown(0.5);
 
-    // === Стороны ===
     doc.font("PTSans").fontSize(9);
     doc.font("PTSans-Bold").text("Исполнитель: ", { continued: true });
     doc.font("PTSans").text(executorName);
@@ -907,17 +865,14 @@ export async function financeRoutes(app: FastifyInstance) {
     }
     doc.moveDown(0.5);
 
-    // === Таблица ===
     drawItemsTable(doc, invoice.items as typeof invoice.items, isDetailed);
 
-    // === Итого ===
     const totalNum = Number(invoice.total);
     doc.moveDown(0.3);
     doc.font("PTSans-Bold").fontSize(10);
     doc.text(`Итого: ${fmtNum(totalNum)} руб.`, { align: "right" });
     doc.text("Без налога (НДС)", { align: "right" });
 
-    // Сумма прописью
     doc.moveDown(0.3);
     doc.font("PTSans").fontSize(9);
     doc.text(`Всего оказано услуг на сумму: ${amountInWords(totalNum)}`);
@@ -926,13 +881,11 @@ export async function financeRoutes(app: FastifyInstance) {
     doc.text("Вышеперечисленные работы (услуги) выполнены полностью и в срок.");
     doc.text("Заказчик претензий по объёму, качеству и срокам оказания услуг не имеет.");
 
-    // === Подписи ===
     doc.moveDown(1.5);
     doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).lineWidth(0.3).stroke();
     doc.moveDown(0.5);
 
     const sigBase = doc.y;
-    // Исполнитель
     doc.font("PTSans-Bold").fontSize(9);
     doc.text("ИСПОЛНИТЕЛЬ:", LEFT, sigBase);
     doc.moveDown(0.3);
@@ -944,7 +897,6 @@ export async function financeRoutes(app: FastifyInstance) {
     doc.moveDown(0.2);
     doc.text(`/${requisites?.signatoryName || ""}/ `, LEFT);
 
-    // Заказчик
     doc.font("PTSans-Bold").fontSize(9);
     doc.text("ЗАКАЗЧИК:", 310, sigBase);
     doc.font("PTSans").fontSize(8);
@@ -964,9 +916,6 @@ export async function financeRoutes(app: FastifyInstance) {
     return reply.send(pdfBuffer);
   });
 
-  // ============================================
-  // ТОРГ-12 (ТОВАРНАЯ НАКЛАДНАЯ)
-  // ============================================
   app.get("/invoices/:id/torg12-pdf", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -980,13 +929,11 @@ export async function financeRoutes(app: FastifyInstance) {
     const executorName = requisites?.name || org?.name || "Зуботехническая лаборатория";
     const clientLegalName = invoice.client.legalEntityName || invoice.client.name;
 
-    // === Заголовок ===
     doc.font("PTSans").fontSize(7);
     doc.text("Унифицированная форма № ТОРГ-12", { align: "right" });
     doc.text("Утверждена постановлением Госкомстата России от 25.12.98 № 132", { align: "right" });
     doc.moveDown(0.5);
 
-    // Шапка с кодами
     doc.font("PTSans-Bold").fontSize(8);
     const headerY = doc.y;
     doc.text(`Грузоотправитель: ${executorName}`, LEFT, headerY, { width: 400 });
@@ -1013,15 +960,12 @@ export async function financeRoutes(app: FastifyInstance) {
 
     doc.moveDown(0.5);
 
-    // === Заголовок ТОРГ-12 ===
     doc.font("PTSans-Bold").fontSize(12);
     doc.text("ТОВАРНАЯ НАКЛАДНАЯ", { align: "center" });
     doc.fontSize(9).font("PTSans");
     doc.text(`№ ${invoice.number} от ${fmtDate(invoice.date)}`, { align: "center" });
     doc.moveDown(0.5);
 
-    // === Таблица ===
-    // Упрощённая таблица ТОРГ-12
     const cols = { num: LEFT, desc: LEFT + 25, unit: 290, qty: 340, price: 400, total: 480 };
     let y = doc.y;
 
@@ -1052,7 +996,6 @@ export async function financeRoutes(app: FastifyInstance) {
     doc.moveTo(LEFT, y).lineTo(RIGHT, y).lineWidth(0.5).stroke();
     y += 6;
 
-    // Итого
     const totalNum = Number(invoice.total);
     doc.font("PTSans-Bold").fontSize(9);
     doc.text(`Итого: ${invoice.items.length} наименований на сумму ${fmtNum(totalNum)} руб.`, LEFT, y);
@@ -1061,12 +1004,10 @@ export async function financeRoutes(app: FastifyInstance) {
     doc.text(amountInWords(totalNum), LEFT, y);
     y += 20;
 
-    // === Подписи ТОРГ-12 ===
     doc.y = y;
     doc.moveDown(0.5);
     const sigBlock = doc.y;
 
-    // Отпуск разрешил
     doc.font("PTSans-Bold").fontSize(8);
     doc.text("Отпуск груза разрешил", LEFT, sigBlock);
     doc.font("PTSans").fontSize(7);
@@ -1101,9 +1042,6 @@ export async function financeRoutes(app: FastifyInstance) {
     return reply.send(pdfBuffer);
   });
 
-  // ============================================
-  // ПАКЕТНАЯ ГЕНЕРАЦИЯ — все документы в одном PDF
-  // ============================================
   app.get("/invoices/:id/bundle-pdf", {
     preHandler: [authorize("OWNER", "ADMIN", "ACCOUNTANT")],
   }, async (request, reply) => {
@@ -1111,9 +1049,6 @@ export async function financeRoutes(app: FastifyInstance) {
     const { variant } = request.query as { variant?: string };
     const { invoice, requisites, org } = await loadInvoiceForPdf(id, request.user.organizationId);
 
-    // Генерируем каждый документ отдельно и конкатенируем
-    // Для простоты: перенаправляем на отдельные endpoints
-    // Пока возвращаем счёт + акт в одном PDF
     const isDetailed = (variant || invoice.variant) !== "SIMPLIFIED";
     const { doc, pdfReady } = createPdfDoc();
     const LEFT = 40;
@@ -1122,7 +1057,6 @@ export async function financeRoutes(app: FastifyInstance) {
     const clientLegalName = invoice.client.legalEntityName || invoice.client.name;
     const totalNum = Number(invoice.total);
 
-    // ===== СТРАНИЦА 1: СЧЁТ =====
     if (requisites) {
       doc.font("PTSans").fontSize(8);
       const bankTop = 40;
@@ -1165,7 +1099,6 @@ export async function financeRoutes(app: FastifyInstance) {
     doc.moveDown(0.3);
     doc.font("PTSans-Bold").fontSize(9).text(amountInWords(totalNum));
 
-    // ===== СТРАНИЦА 2: АКТ =====
     doc.addPage();
     doc.font("PTSans-Bold").fontSize(14).text("АКТ", { align: "center" });
     doc.fontSize(11).text("сдачи-приёмки выполненных работ", { align: "center" });

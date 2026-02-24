@@ -33,7 +33,6 @@ export function authorize(...roles: UserRole[]) {
   };
 }
 
-// Проверка что пользователь работает в своей организации
 export function orgGuard(orgIdFromParam: string, user: JwtPayload): void {
   if (orgIdFromParam !== user.organizationId && user.role !== "OWNER") {
     throw new ForbiddenError("Нет доступа к данным другой организации");

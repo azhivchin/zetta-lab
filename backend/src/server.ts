@@ -45,7 +45,6 @@ async function main() {
     },
   });
 
-  // === Плагины ===
   app.register(cors, { origin: true, credentials: true });
   app.register(helmet, { contentSecurityPolicy: false });
   app.register(jwt, {
@@ -54,7 +53,6 @@ async function main() {
   app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
   app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
-  // === Обработка ошибок ===
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
       return reply.status(error.statusCode).send({
@@ -81,7 +79,6 @@ async function main() {
     });
   });
 
-  // === Роуты ===
   app.get("/api/health", async () => ({
     status: "ok",
     service: "zetta-lab-api",
@@ -112,7 +109,6 @@ async function main() {
   app.register(analyticsRoutes, { prefix: "/api/analytics" });
   app.register(suppliersRoutes, { prefix: "/api/suppliers" });
 
-  // === Запуск ===
   try {
     await prisma.$connect();
     app.log.info("PostgreSQL connected");

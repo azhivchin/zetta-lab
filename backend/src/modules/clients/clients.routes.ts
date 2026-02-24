@@ -14,7 +14,6 @@ const createClientSchema = z.object({
   inn: z.string().optional(),
   kpp: z.string().optional(),
   notes: z.string().optional(),
-  // Расширенные поля (Фаза 1)
   individualCode: z.string().optional(),
   contractNumber: z.string().optional(),
   contractDate: z.string().datetime().optional().or(z.literal("")),
@@ -150,7 +149,6 @@ export async function clientsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: client });
   });
 
-  // POST /api/clients/:id/doctors — Добавить врача к клинике
   app.post("/:id/doctors", async (request, reply) => {
     const { id } = request.params as { id: string };
     const parsed = createDoctorSchema.safeParse(request.body);
@@ -184,7 +182,6 @@ export async function clientsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: doctors });
   });
 
-  // PATCH /api/clients/:id/doctors/:doctorId — Обновить врача
   app.patch("/:id/doctors/:doctorId", async (request, reply) => {
     const { id, doctorId } = request.params as { id: string; doctorId: string };
     const client = await prisma.client.findFirst({
@@ -204,7 +201,6 @@ export async function clientsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: updated });
   });
 
-  // DELETE /api/clients/:id/doctors/:doctorId — Удалить врача (soft-delete)
   app.delete("/:id/doctors/:doctorId", async (request, reply) => {
     const { id, doctorId } = request.params as { id: string; doctorId: string };
     const client = await prisma.client.findFirst({
@@ -219,9 +215,6 @@ export async function clientsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ======== PRICE LIST ========
-
-  // GET /api/clients/:id/prices — Индивидуальный прайс клиента
   app.get("/:id/prices", async (request, reply) => {
     const { id } = request.params as { id: string };
     const client = await prisma.client.findFirst({
@@ -242,7 +235,6 @@ export async function clientsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: prices });
   });
 
-  // PUT /api/clients/:id/prices — Установить/обновить цену для клиента
   app.put("/:id/prices", async (request, reply) => {
     const { id } = request.params as { id: string };
     const { workItemId, price } = request.body as { workItemId: string; price: number };
@@ -268,7 +260,6 @@ export async function clientsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: priceItem });
   });
 
-  // DELETE /api/clients/:id/prices/:workItemId — Удалить индивидуальную цену
   app.delete("/:id/prices/:workItemId", async (request, reply) => {
     const { id, workItemId } = request.params as { id: string; workItemId: string };
     const client = await prisma.client.findFirst({
@@ -283,9 +274,6 @@ export async function clientsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: { deleted: true } });
   });
 
-  // ======== РЕЕСТР ДОГОВОРОВ ========
-
-  // GET /api/clients/contracts-registry — Список клиентов с договорами
   app.get("/contracts-registry", async (request, reply) => {
     const orgId = request.user.organizationId;
 
@@ -319,9 +307,6 @@ export async function clientsRoutes(app: FastifyInstance) {
     reply.send({ success: true, data: registry });
   });
 
-  // ======== STATS ========
-
-  // GET /api/clients/:id/stats — Статистика по клиенту
   app.get("/:id/stats", async (request, reply) => {
     const { id } = request.params as { id: string };
     const client = await prisma.client.findFirst({
