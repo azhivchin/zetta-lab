@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #2EC4B6;
+    --color-primary-dark: #1A9E93;
+    --color-primary-light: #47D6C3;
+    --color-primary-50: #E8FAF8;
+    --color-dark: #1A1A2E;
+    --color-danger: #EF4444;
+    --color-warning: #F59E0B;
+    --color-success: #22C55E;
+    --color-info: #3B82F6;
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+
+  body {
+    @apply bg-gray-50 text-dark antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-zetta-500 hover:bg-zetta-600 text-white font-medium py-2.5 px-5 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-white hover:bg-gray-50 text-dark border border-gray-200 font-medium py-2.5 px-5 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-5 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-sm {
+    @apply py-1.5 px-3 text-sm;
+  }
+  .card {
+    @apply bg-white rounded-xl border border-gray-100 shadow-sm;
+  }
+  .input-field {
+    @apply w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-zetta-500 focus:border-transparent outline-none transition-all text-sm;
+  }
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-new { @apply bg-blue-100 text-blue-800; }
+  .badge-progress { @apply bg-yellow-100 text-yellow-800; }
+  .badge-fitting { @apply bg-purple-100 text-purple-800; }
+  .badge-ready { @apply bg-green-100 text-green-800; }
+  .badge-delivered { @apply bg-gray-100 text-gray-800; }
+  .badge-urgent { @apply bg-red-100 text-red-800; }
+  .badge-overdue { @apply bg-red-500 text-white; }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply bg-gray-200 rounded animate-pulse;
+  }
+
+  /* Link style */
+  .link {
+    @apply text-zetta-600 hover:text-zetta-700 hover:underline cursor-pointer;
+  }
+}

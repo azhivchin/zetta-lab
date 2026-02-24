@@ -1,0 +1,1138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// МУЛЬТИТЕНАНТНОСТЬ
+// ==========================================
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  phone     String?
+  email     String?
+  address   String?
+  logo      String?
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  clients         Client[]
+  workCategories  WorkCategory[]
+  workItems       WorkItem[]
+  materials       Material[]
+  orders          Order[]
+  expenses        Expense[]
+  notifications   Notification[]
+  orgRequisites   OrgRequisites[]
+  referenceLists  ReferenceList[]
+  priceLists      PriceList[]
+  paymentAccounts PaymentAccount[]
+  credits         Credit[]
+  budgetTargets   BudgetTarget[]
+  subcontractors  Subcontractor[]
+  reworks         Rework[]
+  suppliers       Supplier[]
+
+  @@map("organizations")
+}
+
+// ==========================================
+// НАШИ ЮРЛИЦА (РЕКВИЗИТЫ ОРГАНИЗАЦИИ)
+// ==========================================
+
+model OrgRequisites {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  name                  String   // "ИП Квастиани Давид Давидович"
+  shortName             String?  // "ИП Квастиани"
+  inn                   String?
+  kpp                   String?
+  ogrn                  String?
+  legalAddress          String?
+  physicalAddress       String?
+  settlementAccount     String?  // р/с
+  correspondentAccount  String?  // к/с
+  bik                   String?
+  bankName              String?
+  signatoryPosition     String?  // "Индивидуальный предприниматель"
+  signatoryName         String?  // "Квастиани Д.Д."
+  signatoryNameGenitive String?  // "Квастиани Давида Давидовича"
+  basisDocument         String?  // "свидетельства о гос. регистрации"
+  phone                 String?
+  email                 String?
+  isDefault             Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  clients      Client[]     @relation("ClientOurRequisites")
+  invoices     Invoice[]    @relation("InvoiceRequisites")
+
+  @@index([organizationId])
+  @@map("org_requisites")
+}
+
+// ==========================================
+// НАСТРАИВАЕМЫЕ СПРАВОЧНИКИ
+// ==========================================
+
+model ReferenceList {
+  id             String   @id @default(cuid())
+  organizationId String
+  type           String   // expense_category, department, price_list_name, courier_direction, contract_type...
+  code           String   // Уникальный код внутри типа
+  name           String   // Отображаемое название
+  parentId       String?  // Для иерархии
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  metadata       Json?    // Доп. данные (цвет, описание, и т.д.)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  parent       ReferenceList? @relation("ReferenceHierarchy", fields: [parentId], references: [id])
+  children     ReferenceList[] @relation("ReferenceHierarchy")
+
+  @@unique([organizationId, type, code])
+  @@index([organizationId, type])
+  @@map("reference_lists")
+}
+
+// ==========================================
+// ПОЛЬЗОВАТЕЛИ И РОЛИ
+// ==========================================
+
+enum UserRole {
+  OWNER
+  ADMIN
+  SENIOR_TECH
+  TECHNICIAN
+  CAD_SPECIALIST
+  GYPSUM_WORKER
+  CERAMIST
+  COURIER
+  ACCOUNTANT
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String   @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  patronymic     String?
+  phone          String?
+  role           UserRole @default(TECHNICIAN)
+  isActive       Boolean  @default(true)
+  avatar         String?
+  telegramId     String?
+  settings       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // HR-поля (Фаза 6)
+  department     String?   // Отдел: "CAD", "Керамика", "Гипсовый", "Сборка"
+  birthday       DateTime? // Дата рождения
+  hireDate       DateTime? // Дата трудоустройства
+  salaryCoeff    Decimal?  @db.Decimal(5, 2) // Коэффициент к ставке (0.8 — 2.0)
+  personalPhone  String?   // Личный телефон (рабочий — phone)
+  hrNotes        String?   // Заметки по сотруднику
+
+  organization    Organization       @relation(fields: [organizationId], references: [id])
+  refreshTokens   RefreshToken[]
+  assignedStages  OrderStage[]       @relation("StageAssignee")
+  orderComments   OrderComment[]
+  salaryRecords   SalaryRecord[]
+  courierRoutes   CourierRoute[]
+  notifications   Notification[]
+  reworks         Rework[]           @relation("ReworkResponsible")
+  vacations       Vacation[]
+  contracts       EmployeeContract[]
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ==========================================
+// ЗАКАЗЧИКИ (КЛИНИКИ), ВРАЧИ, ПАЦИЕНТЫ
+// ==========================================
+
+model Client {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  shortName      String?
+  phone          String?
+  email          String?
+  address        String?
+  contactPerson  String?
+  inn            String?
+  kpp            String?
+  bankDetails    Json?
+  isActive       Boolean  @default(true)
+  notes          String?
+
+  // Расширенные поля (Фаза 1)
+  individualCode  String?  // Инд. код заказчика
+  contractNumber  String?  // № договора
+  contractDate    DateTime? // Дата договора
+  contractType    String?  // Вид договора (Сервис/Подряд/...)
+
+  // Юр. лицо заказчика
+  legalEntityName       String?  // ООО "Стоматологическая клиника..."
+  signatoryPosition     String?  // Должность руководителя
+  signatoryName         String?  // ФИО руководителя
+  signatoryNameGenitive String?  // ФИО в родительном падеже
+  basisDocument         String?  // "устава" / "доверенности №..."
+  legalAddress          String?  // Юридический адрес
+  physicalAddress       String?  // Фактический адрес
+  ogrn                  String?  // ОГРН
+
+  // Банковские реквизиты (отдельные поля вместо JSON)
+  settlementAccount     String?  // р/с
+  correspondentAccount  String?  // к/с
+  bik                   String?  // БИК
+  bankName              String?  // Наименование банка
+
+  // Логистика
+  courierDirection      String?  // Направление курьера
+  courierSchedule       String?  // График курьера
+
+  // Документы
+  ourRequisitesId       String?  // Какие наши реквизиты использовать
+  reportDisplayName     String?  // Как писать в отчёте
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  ourRequisites  OrgRequisites? @relation("ClientOurRequisites", fields: [ourRequisitesId], references: [id])
+  doctors          Doctor[]
+  orders           Order[]
+  invoices         Invoice[]
+  payments         Payment[]
+  priceLists       ClientPriceItem[]
+  clientPriceLists ClientPriceList[]
+
+  @@index([organizationId])
+  @@index([name])
+  @@map("clients")
+}
+
+model Doctor {
+  id        String   @id @default(cuid())
+  clientId  String
+  firstName String
+  lastName  String
+  patronymic String?
+  phone     String?
+  specialty String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client  Client  @relation(fields: [clientId], references: [id])
+  orders  Order[]
+
+  @@index([clientId])
+  @@map("doctors")
+}
+
+model Patient {
+  id         String   @id @default(cuid())
+  firstName  String
+  lastName   String
+  patronymic String?
+  phone      String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([lastName])
+  @@map("patients")
+}
+
+// ==========================================
+// КАТАЛОГ РАБОТ И ПРАЙС-ЛИСТЫ
+// ==========================================
+
+model WorkCategory {
+  id             String   @id @default(cuid())
+  organizationId String
+  code           String   // 1, 2, 3, 4, 5, 6
+  name           String   // Цифровые работы, Несъёмное протезирование...
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  workItems    WorkItem[]
+
+  @@unique([organizationId, code])
+  @@map("work_categories")
+}
+
+model WorkItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  categoryId     String
+  code           String   // 1.1.2, 4.5.3 и т.д.
+  name           String   // "Протез All-on-4 (балка Ti, CAD-CAM)"
+  description    String?
+  basePrice      Decimal  @db.Decimal(12, 2)
+  unit           String   @default("шт") // шт, челюсть, имплант
+  techPayRate    Decimal? @db.Decimal(12, 2) // Ставка техника за единицу
+  techPayPercent Decimal? @db.Decimal(5, 2)  // Или процент от цены
+  estimatedDays  Int?     // Базовый срок выполнения (дней)
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization  Organization      @relation(fields: [organizationId], references: [id])
+  category      WorkCategory      @relation(fields: [categoryId], references: [id])
+  orderItems     OrderItem[]
+  materialNorms  MaterialNorm[]
+  clientPrices   ClientPriceItem[]
+  priceListItems PriceListItem[]
+  subcontractorPrices SubcontractorPriceItem[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([categoryId])
+  @@map("work_items")
+}
+
+model ClientPriceItem {
+  id         String  @id @default(cuid())
+  clientId   String
+  workItemId String
+  price      Decimal @db.Decimal(12, 2)
+
+  client   Client   @relation(fields: [clientId], references: [id])
+  workItem WorkItem @relation(fields: [workItemId], references: [id])
+
+  @@unique([clientId, workItemId])
+  @@map("client_price_items")
+}
+
+// ==========================================
+// ПРАЙС-ЛИСТЫ (ШАБЛОНЫ)
+// ==========================================
+
+enum PriceListType {
+  CLIENT        // Для клиентов
+  SUBCONTRACTOR // Для субподрядчиков
+}
+
+model PriceList {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String        // "Прайс 2025 Стандарт", "Прайс Медси"
+  code           String        // Краткий код: "N_2025н", "H_2025"
+  type           PriceListType @default(CLIENT)
+  validFrom      DateTime?
+  validTo        DateTime?
+  isActive       Boolean       @default(true)
+  isDefault      Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization    Organization      @relation(fields: [organizationId], references: [id])
+  items           PriceListItem[]
+  clientPriceLists ClientPriceList[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("price_lists")
+}
+
+model PriceListItem {
+  id          String  @id @default(cuid())
+  priceListId String
+  workItemId  String
+  price       Decimal @db.Decimal(12, 2)
+
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  workItem  WorkItem  @relation(fields: [workItemId], references: [id])
+
+  @@unique([priceListId, workItemId])
+  @@index([priceListId])
+  @@map("price_list_items")
+}
+
+model ClientPriceList {
+  id          String @id @default(cuid())
+  clientId    String
+  priceListId String
+
+  client    Client    @relation(fields: [clientId], references: [id])
+  priceList PriceList @relation(fields: [priceListId], references: [id])
+
+  @@unique([clientId, priceListId])
+  @@map("client_price_lists")
+}
+
+// ==========================================
+// ЗАКАЗ-НАРЯДЫ — ГЛАВНАЯ СУЩНОСТЬ
+// ==========================================
+
+enum OrderStatus {
+  NEW           // Новый
+  IN_PROGRESS   // В работе
+  ON_FITTING    // На примерке у клиники
+  REWORK        // Доработка после примерки
+  ASSEMBLY      // На сборке
+  READY         // Готов
+  DELIVERED     // Сдан/доставлен
+  CANCELLED     // Отменён
+}
+
+enum PaymentStatus {
+  UNPAID   // Не оплачен
+  PARTIAL  // Частичная оплата
+  PAID     // Оплачен
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  organizationId String
+  orderNumber    String      // 0.7040, автогенерация
+  clientId       String
+  doctorId       String?
+  patientId      String?
+  status         OrderStatus @default(NEW)
+
+  // Ключевые даты
+  receivedAt     DateTime    @default(now())  // Принято в работу
+  frameworkDate  DateTime?   // Прикус/каркас
+  settingDate    DateTime?   // Постановка
+  fittingSentAt  DateTime?   // Отправлено на примерку
+  fittingBackAt  DateTime?   // Вернулось с примерки
+  dueDate        DateTime?   // Плановая сдача
+  deliveredAt    DateTime?   // Фактическая сдача
+
+  // Зубная формула и детали
+  toothFormula   String?     // "14-15-25", "б/к"
+  color          String?     // A2, A3 и т.д.
+  implantSystem  String?     // Dentium MU и т.д.
+  hasStl         Boolean     @default(false)
+  notes          String?     // Дополнительная информация
+  isUrgent       Boolean     @default(false)
+  isPaid         Boolean     @default(false)
+
+  // Фаза 8: Финансовые расширения
+  paymentStatus  PaymentStatus @default(UNPAID) // Статус оплаты
+  billingPeriod  String?      // "Февраль 2026" — для группировки в счетах
+  discountTotal  Decimal      @default(0) @db.Decimal(12, 2) // Общая скидка
+
+  totalPrice     Decimal     @default(0) @db.Decimal(12, 2)
+  totalCost      Decimal     @default(0) @db.Decimal(12, 2) // Себестоимость
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  client       Client        @relation(fields: [clientId], references: [id])
+  doctor       Doctor?       @relation(fields: [doctorId], references: [id])
+  patient      Patient?      @relation(fields: [patientId], references: [id])
+  items              OrderItem[]
+  stages             OrderStage[]
+  photos             OrderPhoto[]
+  comments           OrderComment[]
+  history            OrderHistory[]
+  invoiceItems       InvoiceItem[]
+  subcontractorOrders SubcontractorOrder[]
+  reworks            Rework[]
+
+  @@unique([organizationId, orderNumber])
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([receivedAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String  @id @default(cuid())
+  orderId       String
+  workItemId    String
+  quantity      Int     @default(1)
+  price         Decimal @db.Decimal(12, 2) // Цена за единицу (может быть индивидуальная)
+  total         Decimal @db.Decimal(12, 2) // quantity * price
+  notes         String?
+
+  // Фаза 8: Скидки и источник цены
+  discount      Decimal  @default(0) @db.Decimal(5, 2) // % скидки
+  discountAmount Decimal @default(0) @db.Decimal(12, 2) // Сумма скидки
+  priceListCode String?  // Код прайса, из которого взята цена (для отчётов)
+
+  createdAt  DateTime @default(now())
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  workItem WorkItem @relation(fields: [workItemId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ==========================================
+// ЭТАПЫ ПРОИЗВОДСТВА
+// ==========================================
+
+enum StageStatus {
+  PENDING     // Ожидает
+  IN_PROGRESS // В работе
+  COMPLETED   // Завершён
+  SKIPPED     // Пропущен
+}
+
+model OrderStage {
+  id          String      @id @default(cuid())
+  orderId     String
+  name        String      // Гипсовка, CAD-моделирование, Каркас, Керамика, Сборка
+  sortOrder   Int         @default(0)
+  status      StageStatus @default(PENDING)
+  assigneeId  String?     // Назначенный техник
+  startedAt   DateTime?
+  completedAt DateTime?
+  dueDate     DateTime?
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  assignee User? @relation("StageAssignee", fields: [assigneeId], references: [id])
+
+  @@index([orderId])
+  @@index([assigneeId])
+  @@index([status])
+  @@map("order_stages")
+}
+
+model OrderPhoto {
+  id        String   @id @default(cuid())
+  orderId   String
+  url       String
+  filename  String
+  caption   String?
+  stage     String?  // К какому этапу привязано фото
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_photos")
+}
+
+model OrderComment {
+  id        String   @id @default(cuid())
+  orderId   String
+  userId    String
+  text      String
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([orderId])
+  @@map("order_comments")
+}
+
+model OrderHistory {
+  id        String   @id @default(cuid())
+  orderId   String
+  action    String   // status_changed, stage_completed, assigned, comment_added...
+  details   Json     // { from: "NEW", to: "IN_PROGRESS", userId: "..." }
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("order_history")
+}
+
+// ==========================================
+// ПОСТАВЩИКИ
+// ==========================================
+
+model Supplier {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  movements    MaterialMovement[]
+
+  @@index([organizationId])
+  @@map("suppliers")
+}
+
+// ==========================================
+// СКЛАД И МАТЕРИАЛЫ
+// ==========================================
+
+model Material {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  unit           String   @default("шт") // шт, мл, г, м
+  currentStock   Decimal  @default(0) @db.Decimal(12, 3)
+  minStock       Decimal  @default(0) @db.Decimal(12, 3)
+  avgPrice       Decimal  @default(0) @db.Decimal(12, 2) // Средняя цена закупки
+  category       String?  // Гипс, Керамика, Цирконий, Расходники...
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  movements    MaterialMovement[]
+  norms        MaterialNorm[]
+
+  @@index([organizationId])
+  @@map("materials")
+}
+
+model MaterialNorm {
+  id         String  @id @default(cuid())
+  workItemId String
+  materialId String
+  quantity   Decimal @db.Decimal(12, 3) // Норма расхода на 1 единицу работы
+
+  workItem WorkItem @relation(fields: [workItemId], references: [id])
+  material Material @relation(fields: [materialId], references: [id])
+
+  @@unique([workItemId, materialId])
+  @@map("material_norms")
+}
+
+enum MovementType {
+  IN       // Приход
+  OUT      // Расход (списание)
+  WRITE_OFF // Списание (брак/истёк срок)
+  INVENTORY // Корректировка по инвентаризации
+}
+
+model MaterialMovement {
+  id         String       @id @default(cuid())
+  materialId String
+  type       MovementType
+  quantity   Decimal      @db.Decimal(12, 3)
+  price      Decimal?     @db.Decimal(12, 2) // Цена закупки (для IN)
+  orderId    String?      // Связь с нарядом (для OUT)
+  supplierId String?      // Поставщик (для IN)
+  notes      String?
+  createdAt  DateTime     @default(now())
+
+  material Material  @relation(fields: [materialId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@index([materialId])
+  @@index([createdAt])
+  @@index([supplierId])
+  @@map("material_movements")
+}
+
+// ==========================================
+// ФИНАНСЫ
+// ==========================================
+
+enum DocumentType {
+  INVOICE  // Счёт
+  ACT      // Акт выполненных работ
+  TORG12   // ТОРГ-12
+}
+
+enum DocumentVariant {
+  DETAILED    // Подробный (с пациентами/нарядами)
+  SIMPLIFIED  // Упрощённый (одной строкой)
+}
+
+model Invoice {
+  id               String           @id @default(cuid())
+  clientId         String
+  number           String
+  date             DateTime         @default(now())
+  dueDate          DateTime?
+  total            Decimal          @db.Decimal(12, 2)
+  isPaid           Boolean          @default(false)
+  notes            String?
+
+  // Фаза 3: Расширение для документооборота
+  type             DocumentType     @default(INVOICE)
+  variant          DocumentVariant  @default(DETAILED)
+  orgRequisitesId  String?          // Наши реквизиты для документа
+  contractReference String?         // "Договор №12 от 01.01.2026"
+  billingPeriod    String?          // "Февраль 2026", "01.01.2026 — 31.01.2026"
+  sequenceNumber   Int?             // Порядковый номер для нумерации в рамках года
+
+  createdAt DateTime @default(now())
+
+  client        Client         @relation(fields: [clientId], references: [id])
+  orgRequisites OrgRequisites? @relation("InvoiceRequisites", fields: [orgRequisitesId], references: [id])
+  items         InvoiceItem[]
+
+  @@index([clientId])
+  @@index([type])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id        String  @id @default(cuid())
+  invoiceId String
+  orderId   String?
+  description String
+  quantity  Int     @default(1)
+  price     Decimal @db.Decimal(12, 2)
+  total     Decimal @db.Decimal(12, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  clientId  String
+  amount    Decimal  @db.Decimal(12, 2)
+  method    String   @default("bank") // cash, bank, card
+  date      DateTime @default(now())
+  notes     String?
+  accountId String?  // Фаза 4: на какой счёт поступило
+  orderId   String?  // Привязка к конкретному заказу
+  createdAt DateTime @default(now())
+
+  client  Client          @relation(fields: [clientId], references: [id])
+  account PaymentAccount? @relation(fields: [accountId], references: [id])
+
+  @@index([clientId])
+  @@index([date])
+  @@index([accountId])
+  @@index([orderId])
+  @@map("payments")
+}
+
+model Expense {
+  id             String   @id @default(cuid())
+  organizationId String
+  category       String   // salary, materials, rent, equipment, logistics, other
+  description    String
+  amount         Decimal  @db.Decimal(12, 2)
+  isRecurring    Boolean  @default(false)
+  date           DateTime @default(now())
+  accountId      String?  // Фаза 4: с какого счёта списано
+  createdAt      DateTime @default(now())
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  account      PaymentAccount? @relation(fields: [accountId], references: [id])
+
+  @@index([organizationId])
+  @@index([date])
+  @@index([accountId])
+  @@map("expenses")
+}
+
+// ==========================================
+// ПЛАТЁЖНЫЕ СЧЕТА (Фаза 4)
+// ==========================================
+
+model PaymentAccount {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String   // "Касса", "Расчётный счёт", "Карта Тинькофф"
+  type           String   @default("bank") // cash, bank, card, credit_card
+  balance        Decimal  @default(0) @db.Decimal(12, 2)
+  currency       String   @default("RUB")
+  isActive       Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  payments       Payment[]
+  expenses       Expense[]
+  transfersFrom  AccountTransfer[] @relation("TransferFrom")
+  transfersTo    AccountTransfer[] @relation("TransferTo")
+  creditPayments CreditPayment[]
+
+  @@index([organizationId])
+  @@map("payment_accounts")
+}
+
+model AccountTransfer {
+  id            String   @id @default(cuid())
+  fromAccountId String
+  toAccountId   String
+  amount        Decimal  @db.Decimal(12, 2)
+  notes         String?
+  date          DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  fromAccount PaymentAccount @relation("TransferFrom", fields: [fromAccountId], references: [id])
+  toAccount   PaymentAccount @relation("TransferTo", fields: [toAccountId], references: [id])
+
+  @@index([fromAccountId])
+  @@index([toAccountId])
+  @@index([date])
+  @@map("account_transfers")
+}
+
+// ==========================================
+// КРЕДИТЫ (Фаза 4)
+// ==========================================
+
+model Credit {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String   // "Кредит Сбер 2025", "Рассрочка оборудование"
+  lender         String?  // Банк/кредитор
+  totalAmount    Decimal  @db.Decimal(12, 2) // Сумма кредита
+  interestRate   Decimal? @db.Decimal(5, 2)  // Годовая ставка %
+  monthlyPayment Decimal? @db.Decimal(12, 2) // Ежемесячный платёж
+  remainingAmount Decimal @default(0) @db.Decimal(12, 2) // Остаток долга
+  startDate      DateTime
+  endDate        DateTime?
+  isActive       Boolean  @default(true)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  payments     CreditPayment[]
+
+  @@index([organizationId])
+  @@map("credits")
+}
+
+model CreditPayment {
+  id        String   @id @default(cuid())
+  creditId  String
+  amount    Decimal  @db.Decimal(12, 2)
+  principal Decimal? @db.Decimal(12, 2) // Тело кредита
+  interest  Decimal? @db.Decimal(12, 2) // Проценты
+  accountId String?  // С какого счёта оплачен
+  date      DateTime @default(now())
+  notes     String?
+  createdAt DateTime @default(now())
+
+  credit  Credit          @relation(fields: [creditId], references: [id])
+  account PaymentAccount? @relation(fields: [accountId], references: [id])
+
+  @@index([creditId])
+  @@index([date])
+  @@map("credit_payments")
+}
+
+// ==========================================
+// БЮДЖЕТ / P&L (Фаза 4)
+// ==========================================
+
+model BudgetTarget {
+  id             String  @id @default(cuid())
+  organizationId String
+  period         String  // "2026-01", "2026-02" и т.д.
+  category       String  // revenue, salary, materials, subcontract, rent, equipment, logistics, credit, other
+  amount         Decimal @db.Decimal(12, 2) // Плановая сумма
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, period, category])
+  @@index([organizationId, period])
+  @@map("budget_targets")
+}
+
+// ==========================================
+// СУБПОДРЯДЧИКИ (Фаза 5)
+// ==========================================
+
+model Subcontractor {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String   // "Давид", "ЗТЛ Партнёр"
+  contactPerson  String?
+  phone          String?
+  email          String?
+  specializations String? // "Керамика, CAD-CAM" (через запятую)
+  inn            String?
+  bankName       String?
+  settlementAccount String?
+  correspondentAccount String?
+  bik            String?
+  priceListId    String?  // Привязанный прайс-лист субподрядчика
+  isActive       Boolean  @default(true)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  orders       SubcontractorOrder[]
+  priceItems   SubcontractorPriceItem[]
+
+  @@index([organizationId])
+  @@map("subcontractors")
+}
+
+// Индивидуальные цены субподрядчика за работы
+model SubcontractorPriceItem {
+  id              String   @id @default(cuid())
+  subcontractorId String
+  workItemId      String
+  price           Decimal  @db.Decimal(12, 2)
+  createdAt       DateTime @default(now())
+
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  workItem      WorkItem      @relation(fields: [workItemId], references: [id])
+
+  @@unique([subcontractorId, workItemId])
+  @@index([subcontractorId])
+  @@map("subcontractor_price_items")
+}
+
+enum SubcontractorOrderStatus {
+  SENT        // Отправлено
+  IN_PROGRESS // В работе
+  COMPLETED   // Выполнено
+  RETURNED    // Возвращено с замечаниями
+  CANCELLED   // Отменено
+}
+
+model SubcontractorOrder {
+  id               String                   @id @default(cuid())
+  subcontractorId  String
+  orderId          String                   // Связь с нашим нарядом
+  description      String                   // Что передано на подряд
+  price            Decimal                  @db.Decimal(12, 2)
+  status           SubcontractorOrderStatus @default(SENT)
+  sentAt           DateTime                 @default(now())
+  dueDate          DateTime?
+  completedAt      DateTime?
+  isPaid           Boolean                  @default(false)
+  paidAt           DateTime?
+  paidAmount       Decimal?                 @db.Decimal(12, 2)
+  notes            String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id])
+  order         Order         @relation(fields: [orderId], references: [id])
+
+  @@index([subcontractorId])
+  @@index([orderId])
+  @@index([status])
+  @@map("subcontractor_orders")
+}
+
+// ==========================================
+// КОНТРОЛЬ КАЧЕСТВА / ПЕРЕДЕЛКИ (Фаза 5)
+// ==========================================
+
+enum ReworkStatus {
+  OPEN        // Открыта
+  IN_PROGRESS // В работе
+  RESOLVED    // Устранена
+  CLOSED      // Закрыта (списана)
+}
+
+model Rework {
+  id             String       @id @default(cuid())
+  organizationId String
+  orderId        String       // Наряд с браком
+  reason         String       // Причина переделки
+  category       String       // ceramic_chip, fit_issue, color_mismatch, framework_defect, other
+  responsibleId  String?      // Техник, допустивший брак
+  cost           Decimal      @default(0) @db.Decimal(12, 2) // Стоимость переделки
+  status         ReworkStatus @default(OPEN)
+  resolution     String?      // Описание решения
+  clientId       String?      // Заказчик (для статистики)
+  detectedAt     DateTime     @default(now())
+  resolvedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  order        Order        @relation(fields: [orderId], references: [id])
+  responsible  User?        @relation("ReworkResponsible", fields: [responsibleId], references: [id])
+
+  @@index([organizationId])
+  @@index([orderId])
+  @@index([responsibleId])
+  @@index([status])
+  @@index([detectedAt])
+  @@map("reworks")
+}
+
+// ==========================================
+// HR: ОТПУСКА (Фаза 6)
+// ==========================================
+
+enum VacationType {
+  VACATION    // Ежегодный отпуск
+  SICK_LEAVE  // Больничный
+  UNPAID      // За свой счёт
+  MATERNITY   // Декрет
+  OTHER       // Прочее
+}
+
+enum VacationStatus {
+  PLANNED     // Запланирован
+  APPROVED    // Утверждён
+  ACTIVE      // Сейчас в отпуске
+  COMPLETED   // Завершён
+  CANCELLED   // Отменён
+}
+
+model Vacation {
+  id        String         @id @default(cuid())
+  userId    String
+  type      VacationType   @default(VACATION)
+  status    VacationStatus @default(PLANNED)
+  dateFrom  DateTime
+  dateTo    DateTime
+  days      Int            // Кол-во дней
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([dateFrom])
+  @@index([dateTo])
+  @@map("vacations")
+}
+
+// ==========================================
+// HR: ТРУДОВЫЕ ДОГОВОРА (Фаза 6)
+// ==========================================
+
+enum ContractType {
+  EMPLOYMENT  // Трудовой договор
+  GPC         // Гражданско-правовой (ГПХ)
+  INTERNSHIP  // Стажировка
+}
+
+model EmployeeContract {
+  id           String       @id @default(cuid())
+  userId       String
+  type         ContractType @default(EMPLOYMENT)
+  number       String       // Номер договора
+  startDate    DateTime
+  endDate      DateTime?    // null = бессрочный
+  salary       Decimal?     @db.Decimal(12, 2) // Оклад
+  notes        String?
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("employee_contracts")
+}
+
+// ==========================================
+// ЗАРПЛАТА
+// ==========================================
+
+model SalaryRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  period    String   // "2026-02" (год-месяц)
+  amount    Decimal  @db.Decimal(12, 2)
+  details   Json     // Детализация: какие работы, сколько за каждую
+  workType  String?  // Тип процесса: DIGITAL_MODELING, TECHNICAL, AESTHETIC, MILLING, PRINTING, CASTING
+  isPaid    Boolean  @default(false)
+  paidAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, period])
+  @@index([userId])
+  @@map("salary_records")
+}
+
+// ==========================================
+// ЛОГИСТИКА
+// ==========================================
+
+model CourierRoute {
+  id        String   @id @default(cuid())
+  courierId String
+  date      DateTime
+  stops     Json     // [{ clientId, type: "pickup"|"delivery", orderIds: [], address, completed: false }]
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courier User @relation(fields: [courierId], references: [id])
+
+  @@index([courierId])
+  @@index([date])
+  @@map("courier_routes")
+}
+
+// ==========================================
+// УВЕДОМЛЕНИЯ
+// ==========================================
+
+model Notification {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  type           String   // order_overdue, stage_completed, material_low, new_order, payment_received
+  title          String
+  message        String
+  data           Json?
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
